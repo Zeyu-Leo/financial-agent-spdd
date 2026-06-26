@@ -1,20 +1,5 @@
 # Financial Helpdesk Agent
 
-> **About this README.**
-> This is the *seed* version of the project README — the file you copy
-> to `/README.md` as part of Task 0. Everything below is intentionally
-> minimal: it covers what Task 0 ships (Docker Compose, `/healthz`,
-> project skeleton) and nothing further. Each subsequent
-> `Task_<N>_<Topic>.trainee.md` includes an *Update README* operation
-> that grows this file with one new section per week. By Week 7 your
-> README will look quite different from this seed — and that's the
-> intended trajectory.
->
-> If you're tempted to peek at what the README "should" look like at
-> end of Week 8, we'd suggest holding off until you've finished
-> Week 7. The trap-and-reveal rhythm of the curriculum works better
-> when each week's destination canvas surprises you on Sunday.
-
 A Dockerised, LangGraph-based agent that answers consumer-finance
 questions grounded in CFPB public data. Built incrementally over 8
 weeks; this README grows one section per week.
@@ -50,9 +35,10 @@ tests/                  # Pytest suites (one test at Week 0)
 ## Local development
 
 ```bash
-poetry install
+poetry install --all-extras   # --all-extras pulls the `dev` group (pytest, ruff, mypy)
 poetry run ruff check .
 poetry run pytest -q
+poetry run mypy app
 ```
 
 ## Where to learn next
