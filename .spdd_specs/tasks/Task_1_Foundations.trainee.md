@@ -131,6 +131,17 @@ These are the contract; do not soften them.
   **when** `LOG_FORMAT=json`,
   **then** every record contains at minimum `timestamp`, `level`,
   `request_id`, `event`, and (where applicable) `duration_ms`.
+- **Given** the configured LLM provider is reachable (Ollama `GET
+  /api/tags`, or OpenRouter `GET /v1/models`),
+  **when** `GET /readyz` is called,
+  **then** it returns `200` with `{"status": "ready", "provider": ...}`.
+- **Given** the configured LLM provider is unreachable or returns an
+  error status,
+  **when** `GET /readyz` is called,
+  **then** it performs a **single** lightweight probe (no 3-attempt
+  retry, short timeout) and returns `503` with the standard error body
+  `{"error_code", "message", "request_id"}`. `GET /healthz` stays a
+  pure liveness probe and never touches the provider.
 
 ---
 
@@ -312,7 +323,12 @@ class LLMService:
 6. **Wire `ServicesContainer` in `app/api/main.py` and add `/readyz`.**
    Build `Settings`, logging, `LLMHTTPClient`, and `LLMService` in
    lifespan. Add request-id middleware that binds `X-Request-Id` or a
-   new UUIDv4 and echoes it on the response.
+   new UUIDv4 and echoes it on the response. `/readyz` performs a
+   **single** provider liveness probe via `LLMService.check_liveness`
+   (Ollama `GET /api/tags`, OpenRouter `GET /v1/models`) with a short
+   timeout and **no retry**; unreachable → `503`. `/healthz` remains a
+   dependency-free liveness probe. (Provider liveness is wired now;
+   the Postgres readiness check is added with Task 2.)
 7. **Write focused tests.** Cover config validation, provider endpoints
    and response unwrapping with `httpx.MockTransport`, bounded retries,
    JSON log fields, request_id injection, secret redaction, and prompt
