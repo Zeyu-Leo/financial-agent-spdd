@@ -35,6 +35,17 @@ def _build_http_client(settings: Settings) -> LLMHTTPClient:
             settings.openrouter_base_url,
             api_key=settings.openrouter_api_key,
         )
+    if settings.llm_provider == "portkey":
+        headers: dict[str, str] = {}
+        if settings.portkey_api_key:
+            headers["x-portkey-api-key"] = settings.portkey_api_key
+        if settings.portkey_provider:
+            headers["x-portkey-provider"] = settings.portkey_provider
+        return LLMHTTPClient(
+            settings.portkey_base_url,
+            api_key=settings.portkey_provider_api_key,  # forwarded as Authorization
+            extra_headers=headers,
+        )
     return LLMHTTPClient(settings.ollama_base_url)
 
 

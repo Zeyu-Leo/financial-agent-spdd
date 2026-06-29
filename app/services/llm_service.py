@@ -28,6 +28,9 @@ BACKOFF_BASE_SECONDS = 0.5
 LIVENESS_TIMEOUT_SECONDS = 5.0
 # 5xx are transient; 4xx are caller/config errors and must not retry.
 _TRANSIENT_NETWORK_ERRORS = (httpx.TimeoutException, httpx.RequestError)
+# Providers that speak the OpenAI-compatible API (same request/response shape).
+# Portkey is a gateway in front of an upstream provider; OpenRouter is direct.
+_OPENAI_COMPATIBLE = frozenset({"openrouter", "portkey"})
 
 
 def _elapsed_ms(start: float) -> int:
@@ -38,6 +41,14 @@ class LLMService:
     def __init__(self, settings: Settings, http_client: LLMHTTPClient) -> None:
         self._settings = settings
         self._http = http_client
+
+    def _chat_model(self) -> str:
+        """Default chat model for the configured provider."""
+        if self._settings.llm_provider == "portkey":
+            return self._settings.portkey_model
+        if self._settings.llm_provider == "ollama":
+            return self._settings.ollama_chat_model
+        return self._settings.openrouter_model
 
     # ------------------------------------------------------------------ #
     # Public API
@@ -54,10 +65,10 @@ class LLMService:
     ) -> str:
         provider = self._settings.llm_provider
         rid = request_id or get_request_id()
-        if provider == "openrouter":
+        if provider in _OPENAI_COMPATIBLE:
             url = "/chat/completions"
             payload: dict[str, Any] = {
-                "model": model or self._settings.openrouter_model,
+                "model": model or self._chat_model(),
                 "messages": messages,
                 "temperature": temperature,
             }
@@ -112,7 +123,7 @@ class LLMService:
     ) -> list[list[float]]:
         provider = self._settings.llm_provider
         rid = request_id or get_request_id()
-        if provider == "openrouter":
+        if provider in _OPENAI_COMPATIBLE:
             url = "/embeddings"
             payload: dict[str, Any] = {
                 "model": model or self._settings.embedding_model,
@@ -253,7 +264,7 @@ class LLMService:
         self, data: dict[str, Any], provider: str, request_id: str | None
     ) -> str:
         try:
-            if provider == "openrouter":
+            if provider in _OPENAI_COMPATIBLE:
                 content = data["choices"][0]["message"]["content"]
             else:
                 content = data["message"]["content"]
@@ -277,7 +288,7 @@ class LLMService:
         self, data: dict[str, Any], provider: str, request_id: str | None
     ) -> list[list[float]]:
         try:
-            if provider == "openrouter":
+            if provider in _OPENAI_COMPATIBLE:
                 items = sorted(data["data"], key=lambda d: d["index"])
                 vectors = [item["embedding"] for item in items]
             else:

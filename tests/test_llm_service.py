@@ -34,10 +34,22 @@ def _service(provider: str, handler: httpx.MockTransport, *, embedding_dim: int 
         pg_dsn="postgresql://x",
         llm_provider=provider,
         openrouter_api_key="sk-test" if provider == "openrouter" else None,
+        portkey_api_key="pk-test" if provider == "portkey" else None,
+        portkey_provider="openai" if provider == "portkey" else None,
         embedding_dim=embedding_dim,
     )
-    base = settings.openrouter_base_url if provider == "openrouter" else settings.ollama_base_url
-    client = LLMHTTPClient(base, transport=handler)
+    base = {
+        "openrouter": settings.openrouter_base_url,
+        "portkey": settings.portkey_base_url,
+        "ollama": settings.ollama_base_url,
+    }[provider]
+    extra_headers = None
+    if provider == "portkey":
+        extra_headers = {
+            "x-portkey-api-key": settings.portkey_api_key or "",
+            "x-portkey-provider": settings.portkey_provider or "",
+        }
+    client = LLMHTTPClient(base, transport=handler, extra_headers=extra_headers)
     return LLMService(settings, client)
 
 
@@ -205,6 +217,51 @@ async def test_liveness_raises_when_unreachable() -> None:
     svc = _service("ollama", httpx.MockTransport(handler))
     with pytest.raises(LLMProviderError):
         await svc.check_liveness()
+
+
+# --------------------------------------------------------------------- #
+# Portkey gateway (OpenAI-compatible, routed via the gateway URL + headers)
+# --------------------------------------------------------------------- #
+async def test_portkey_complete_endpoint_and_headers() -> None:
+    seen: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        seen["provider_header"] = request.headers.get("x-portkey-provider")
+        seen["key_header"] = request.headers.get("x-portkey-api-key")
+        return httpx.Response(200, json={"choices": [{"message": {"content": "via gateway"}}]})
+
+    svc = _service("portkey", httpx.MockTransport(handler))
+    out = await svc.complete(messages=[{"role": "user", "content": "hi"}])
+    assert out == "via gateway"
+    assert seen["url"] == "https://api.portkey.ai/v1/chat/completions"
+    assert seen["provider_header"] == "openai"
+    assert seen["key_header"] == "pk-test"
+
+
+async def test_portkey_embed_endpoint() -> None:
+    seen: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        return httpx.Response(200, json={"data": [{"index": 0, "embedding": [0.1, 0.2, 0.3]}]})
+
+    svc = _service("portkey", httpx.MockTransport(handler))
+    out = await svc.embed(inputs=["a"])
+    assert seen["url"] == "https://api.portkey.ai/v1/embeddings"
+    assert out == [[0.1, 0.2, 0.3]]
+
+
+async def test_portkey_liveness_probes_models() -> None:
+    seen: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        return httpx.Response(200, json={"data": []})
+
+    svc = _service("portkey", httpx.MockTransport(handler))
+    await svc.check_liveness()
+    assert seen["url"] == "https://api.portkey.ai/v1/models"
 
 
 # --------------------------------------------------------------------- #

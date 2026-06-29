@@ -33,6 +33,9 @@ _SECRET_KEYS = {
     "openrouter_api_key",
     "x-api-key",
     "key",
+    "x-portkey-api-key",
+    "portkey_api_key",
+    "portkey_provider_api_key",
 }
 _REDACTED = "***REDACTED***"
 

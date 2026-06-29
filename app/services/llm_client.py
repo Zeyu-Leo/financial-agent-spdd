@@ -25,12 +25,15 @@ class LLMHTTPClient:
         base_url: str,
         *,
         api_key: str | None = None,
+        extra_headers: dict[str, str] | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
         timeout: float = DEFAULT_TIMEOUT,
     ) -> None:
         headers: dict[str, str] = {}
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
+        if extra_headers:
+            headers.update(extra_headers)
         self._client = httpx.AsyncClient(
             base_url=base_url,
             headers=headers,

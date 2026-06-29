@@ -26,9 +26,11 @@ Task 0. **Prior tasks read:** Task 0 (env keys, healthz, settings
 stub).
 
 **Strategic direction:** one provider-agnostic facade over chat +
-embeddings, configured by `Settings`. Retries and structured-output
-parsing live behind the facade, never in the caller. Errors are
-typed so callers can decide policy without sniffing message
+embeddings, configured by `Settings`. Ollama and the OpenAI-compatible
+providers (OpenRouter direct, or the Portkey gateway) live behind the
+same facade; callers never branch on provider. Retries and
+structured-output parsing live behind the facade, never in the caller.
+Errors are typed so callers can decide policy without sniffing message
 strings.
 
 **Risks noticed.**
@@ -104,6 +106,13 @@ These are the contract; do not soften them.
   **when** `await llm.complete(...)` is invoked,
   **then** the mocked HTTP layer receives a POST to
   `http://localhost:11434/api/chat` and unwraps `message.content`.
+- **Given** an `LLMService` instance configured for Portkey and a
+  test that mocks the underlying `httpx.AsyncClient`,
+  **when** `await llm.complete(...)` is invoked,
+  **then** the mocked HTTP layer receives a POST to
+  `https://api.portkey.ai/v1/chat/completions` carrying the
+  `x-portkey-api-key` and `x-portkey-provider` headers, unwrapped the
+  same OpenAI-compatible way as OpenRouter.
 - **Given** an `LLMService` instance configured for OpenRouter and a
   test that mocks the underlying `httpx.AsyncClient`,
   **when** `await llm.embed(inputs=["a", "b"])` is invoked,
@@ -166,6 +175,9 @@ classDiagram
       +str log_format
       +str openrouter_base_url
       +str openrouter_model
+      +str portkey_base_url
+      +str portkey_model
+      +str portkey_provider
       +str ollama_base_url
       +str ollama_chat_model
       +str embedding_model
@@ -211,8 +223,9 @@ classDiagram
    that raises early when required env keys are missing. No
    per-module env reads scattered through the codebase.
 2. **One `LLMService` facade** with two methods (`complete`,
-   `embed`). Provider differences (Ollama vs OpenRouter) live
-   *inside* the service; callers never see them.
+   `embed`). Provider differences live *inside* the service; callers
+   never see them. OpenRouter and the Portkey gateway share one
+   OpenAI-compatible request/response path; Ollama is the other shape.
 3. **A thin HTTP layer** (`LLMHTTPClient` wrapping
    `httpx.AsyncClient`) so tests can swap in `httpx.MockTransport`
    without monkey-patching the whole network stack.
@@ -257,12 +270,18 @@ app/
 # app/core/config.py
 class Settings(BaseSettings):
     pg_dsn: str
-    llm_provider: Literal["ollama", "openrouter"] = "ollama"
+    llm_provider: Literal["ollama", "openrouter", "portkey"] = "ollama"
     log_format: Literal["json", "text"] = "text"
     # Conditional, see Acceptance Criteria
     openrouter_api_key: str | None = None
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_model: str = "gpt-4.1-mini"
+    # Portkey gateway (OpenAI-compatible). Keys conditional, see Acceptance Criteria
+    portkey_api_key: str | None = None
+    portkey_provider: str | None = None
+    portkey_provider_api_key: str | None = None
+    portkey_base_url: str = "https://api.portkey.ai/v1"
+    portkey_model: str = "gpt-4.1-mini"
     # Defaulted
     ollama_base_url: str = "http://localhost:11434"
     ollama_chat_model: str = "gemma3:27b"
