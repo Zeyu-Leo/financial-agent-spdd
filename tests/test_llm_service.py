@@ -1,6 +1,7 @@
 """LLMService acceptance: provider endpoints, unwrapping, bounded retries,
 embed batch + dimension check (Task 1 criteria 3-5 + embed criteria)."""
 
+import json
 from typing import Any
 
 import httpx
@@ -8,9 +9,14 @@ import pytest
 
 from app.core.config import Settings
 from app.core.exceptions import LLMProviderError
+from app.core.logging import configure_logging
 from app.services import llm_service as llm_service_mod
 from app.services.llm_client import LLMHTTPClient
 from app.services.llm_service import LLMService
+
+
+def _json_records(out: str) -> list[dict[str, Any]]:
+    return [json.loads(line) for line in out.strip().splitlines() if line.strip().startswith("{")]
 
 
 @pytest.fixture(autouse=True)
@@ -199,6 +205,43 @@ async def test_liveness_raises_when_unreachable() -> None:
     svc = _service("ollama", httpx.MockTransport(handler))
     with pytest.raises(LLMProviderError):
         await svc.check_liveness()
+
+
+# --------------------------------------------------------------------- #
+# observability: duration_ms on success, error event on terminal failure
+# --------------------------------------------------------------------- #
+async def test_complete_success_logs_duration_ms(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"message": {"content": "ok"}})
+
+    svc = _service("ollama", httpx.MockTransport(handler))
+    configure_logging("json")
+    await svc.complete(messages=[{"role": "user", "content": "hi"}])
+
+    records = _json_records(capsys.readouterr().out)
+    done = [r for r in records if r.get("event") == "llm.complete"]
+    assert done, "expected an llm.complete success record"
+    assert isinstance(done[0]["duration_ms"], int)
+
+
+async def test_complete_terminal_failure_logs_error_event(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, json={"error": "overloaded"})
+
+    svc = _service("ollama", httpx.MockTransport(handler))
+    configure_logging("json")
+    with pytest.raises(LLMProviderError):
+        await svc.complete(messages=[{"role": "user", "content": "hi"}])
+
+    records = _json_records(capsys.readouterr().out)
+    failed = [r for r in records if r.get("event") == "llm.complete.failed"]
+    assert failed, "expected an llm.complete.failed error record"
+    assert failed[0]["level"] == "ERROR"
+    assert "duration_ms" in failed[0]
 
 
 async def test_liveness_does_not_retry() -> None:

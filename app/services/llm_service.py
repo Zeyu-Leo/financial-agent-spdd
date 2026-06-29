@@ -11,6 +11,7 @@ backoff up to a fixed 3 attempts (no ``max_retries`` knob), then raise
 from __future__ import annotations
 
 import asyncio
+import time
 from typing import Any
 
 import httpx
@@ -27,6 +28,10 @@ BACKOFF_BASE_SECONDS = 0.5
 LIVENESS_TIMEOUT_SECONDS = 5.0
 # 5xx are transient; 4xx are caller/config errors and must not retry.
 _TRANSIENT_NETWORK_ERRORS = (httpx.TimeoutException, httpx.RequestError)
+
+
+def _elapsed_ms(start: float) -> int:
+    return round((time.perf_counter() - start) * 1000)
 
 
 class LLMService:
@@ -72,6 +77,20 @@ class LLMService:
                 payload["options"]["num_predict"] = max_tokens
 
         prompt_preview, truncated = truncate_prompt(str(messages))
+        start = time.perf_counter()
+        try:
+            data = await self._request_with_retries(url, payload, provider, rid)
+        except LLMProviderError:
+            logger.error(
+                "llm.complete.failed",
+                event="llm.complete.failed",
+                request_id=rid,
+                provider=provider,
+                url=url,
+                duration_ms=_elapsed_ms(start),
+            )
+            raise
+        result = self._unwrap_completion(data, provider, rid)
         logger.info(
             "llm.complete",
             event="llm.complete",
@@ -80,9 +99,9 @@ class LLMService:
             url=url,
             prompt=prompt_preview,
             _truncated=truncated,
+            duration_ms=_elapsed_ms(start),
         )
-        data = await self._request_with_retries(url, payload, provider, rid)
-        return self._unwrap_completion(data, provider, rid)
+        return result
 
     async def embed(
         self,
@@ -106,6 +125,22 @@ class LLMService:
                 "input": inputs,
             }
 
+        start = time.perf_counter()
+        try:
+            data = await self._request_with_retries(url, payload, provider, rid)
+        except LLMProviderError:
+            logger.error(
+                "llm.embed.failed",
+                event="llm.embed.failed",
+                request_id=rid,
+                provider=provider,
+                url=url,
+                n_inputs=len(inputs),
+                duration_ms=_elapsed_ms(start),
+            )
+            raise
+        vectors = self._unwrap_embeddings(data, provider, rid)
+        self._check_dimensions(vectors, provider, rid)
         logger.info(
             "llm.embed",
             event="llm.embed",
@@ -113,10 +148,8 @@ class LLMService:
             provider=provider,
             url=url,
             n_inputs=len(inputs),
+            duration_ms=_elapsed_ms(start),
         )
-        data = await self._request_with_retries(url, payload, provider, rid)
-        vectors = self._unwrap_embeddings(data, provider, rid)
-        self._check_dimensions(vectors, provider, rid)
         return vectors
 
     async def check_liveness(self, *, request_id: str | None = None) -> None:
