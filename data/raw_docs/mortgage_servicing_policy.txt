@@ -1,0 +1,20 @@
+Title: Mortgage servicing, escrow, and accountability
+Sources:
+  - https://www.consumerfinance.gov/ask-cfpb/whats-the-difference-between-a-mortgage-lender-and-a-mortgage-servicer-en-198/
+  - https://www.consumerfinance.gov/ask-cfpb/what-is-an-escrow-or-impound-account-en-140/
+
+--- 8< ---  Mortgage lender vs mortgage servicer
+Question: What's the difference between a mortgage lender and a mortgage servicer?
+Last reviewed: DEC 11, 2024
+
+Your mortgage lender is the financial institution that originally loaned you the money. Your mortgage servicer is the company that sends you your mortgage statements and handles the day-to-day tasks for managing your loan.
+Tip
+To find out who your servicer is, check your monthly mortgage statement or payment coupon book. If you can’t find a statement or coupon, you can try the MERS® Servicer Identification System toll-free at (888) 679-6377 or visit the MERS® website . MERS® is a private company that maintains information about mortgage loans and servicers. Your loan servicer’s identity may be listed in the MERS® system.
+After you’ve taken out a loan from a mortgage lender, it’s common for a different company to take over your loan as the mortgage servicer.Your loan servicer typically processes your loan payments, responds to your inquiries, keeps track of principal and interest paid, and manages your tax and insurance escrow account (if you have one). The loan servicer can offer options if you are falling behind on payments as well as initiate foreclosure under certain circumstances.
+
+--- 8< ---  Mortgage escrow and impound accounts
+Question: What is an escrow or impound account?
+Last reviewed: SEP 11, 2024
+
+An escrow account, sometimes called an impound account depending on where you live, is set up by your mortgage lender to pay certain property-related expenses.
+The money that goes into the account comes from a portion of your monthly mortgage payment. An escrow account helps you pay these expenses because you send money through your lender or servicer, every month, instead of having to pay a big bill once or twice a year. Many lenders require that you pay your taxes and insurance using escrow, so they can make sure that the bill gets paid. Your mortgage servicer will manage the escrow account and pay these bills on your behalf. Sometimes, escrow accounts may also be required by law.Your property taxes and insurance premiums can change from year to year. Your escrow payment—and  with it, your total monthly payment will change accordingly. Tip: If your loan doesn’t include an escrow account, you will have to plan to pay these large expenses yourself. Be sure you budget for these extra costs and stay current on your taxes and insurance payments. If you fail to pay your property taxes, your state or local government may impose fines and penalties or place a tax lien on your home.  You could also face foreclosure.In addition, if you fail to pay your taxes or insurance, your lender may:Add the amounts to your loan balanceAdd an escrow account to your loanPurchase new homeowners insurance for you and bill you for it. This lender-purchased insurance, known as force-placed insurance, is typically more expensive than homeowners insurance you pay on your own. Even if your lender does not require an escrow account, consider requesting one voluntarily. An escrow account makes it easier to budget for your large property-related bills by paying small amounts with each mortgage payment. That way you don’t have to scramble to pay a large property tax bill or insurance premium when it comes due.

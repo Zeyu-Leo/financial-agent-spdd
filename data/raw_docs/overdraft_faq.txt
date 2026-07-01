@@ -1,0 +1,20 @@
+Title: Overdraft basics and consumer rights
+Sources:
+  - https://www.consumerfinance.gov/ask-cfpb/what-is-an-overdraft-en-1035/
+  - https://www.consumerfinance.gov/ask-cfpb/what-can-i-do-if-my-bank-charged-me-a-fee-for-overdrawing-my-account-en-1037/
+
+--- 8< ---  Overdraft fundamentals
+Question: What is an overdraft?
+Last reviewed: JAN 31, 2024
+
+An overdraft occurs when you don’t have enough money in your account to cover a transaction, but the bank pays the transaction anyway.
+Tip
+Deposits to your account may not be immediately available for your use. Always make sure you have sufficient available funds in your account. Even if you just made a deposit, you may still overdraw your account.
+You can overdraw your account through checks, ATM transactions, debit card purchases, automatic bill payments, and electronic or in-person withdrawals.Many banks and credit unions offer overdraft protection programs in which the bank or credit union generally pays the transaction and charges you a fee (in addition to requiring repayment of the overdraft amount). Overdrafts can also be covered through a transfer of funds from a linked account, credit card, or line of credit.Banks and credit unions have different fees associated with overdraft protection so, when shopping for a checking account, be sure to ask what the account terms are with respect to the cost of overdraft protection, a linked account or a line of credit.
+
+--- 8< ---  What to do when charged an overdraft fee
+Question: What can I do if my bank charged me a fee for overdrawing my account?
+Last reviewed: DEC 18, 2024
+
+For one-time debit card transactions and ATM withdrawals, banks cannot charge you an overdraft fee unless you opt in. However, banks are allowed to charge overdraft fees for checks and recurring electronic payments, even if you did not opt in.
+An overdraft occurs when you don’t have enough money in your account to cover a transaction, and if you’re opted into an overdraft protection program, your bank would pay for the transaction but charge you a fee.While declining overdraft protections means banks won’t charge you a fee for debit card and ATM transactions, you can still be charged a fee if you overdraw your account with a check or recurring electronic payment. Some banks, however, allow you to opt-out of these overdrafts, but you may be charged a non-sufficient funds (NSF) fee from the bank or credit union, which is often the same amount as an overdraft fee. In addition, declined payments may trigger a returned item fee from the merchant.If you are enrolled in an overdraft protection program with your bank or credit union, you can change your mind at any time. Just notify them that you no longer want this coverage.If you do not believe you’ve authorized debit overdraft protection, and the bank charges you a debit overdraft fee, you may file a complaint with the CFPB.
