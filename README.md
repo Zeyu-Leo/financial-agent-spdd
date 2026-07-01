@@ -3,9 +3,12 @@
 A Dockerised, LangGraph-based agent that answers consumer-finance questions
 grounded in CFPB public data.
 
-**Current stage: Week 0 — environment only.** The `app` container exposes a
-single `/healthz` probe; the `db` container runs PostgreSQL with `pgvector`
-but is empty. There is no agent yet.
+**Current stage: Week 1 — Foundations.** The `app` container exposes
+`/healthz` (liveness) and `/readyz` (probes the configured LLM provider). This
+week adds the three abstractions every later week builds on: a typed
+`Settings`, a provider-agnostic `LLMService` (`complete` + `embed` over Ollama
+or OpenRouter), and structured logging with a `request_id` ContextVar. There
+is no agent graph yet — that lands in Week 3.
 
 ## Quickstart
 
@@ -13,6 +16,7 @@ but is empty. There is no agent yet.
 cp .env.example .env
 ./auto/start.sh                      # docker compose up --build
 curl http://localhost:8000/healthz   # → {"status": "ok"}
+curl http://localhost:8000/readyz    # → 200 {"status":"ready",...} or 503 if the provider is unreachable
 ```
 
 `auto/start.sh` wraps `docker compose -f infra/docker-compose.yml up --build`.
@@ -20,34 +24,95 @@ curl http://localhost:8000/healthz   # → {"status": "ok"}
 ## Project layout
 
 ```text
-app/                    # FastAPI app (just /healthz at Week 0)
-  ├── api/main.py       # FastAPI entrypoint + /healthz
-  ├── core/config.py    # Settings (pydantic-settings)
-  ├── services/         # (empty — Week 1+)
-  └── tools/            # (empty — Week 3+)
-infra/                  # Dockerfile.app + docker-compose.yml
-auto/                   # Local helper scripts (start.sh)
-tests/                  # Pytest suites (test_health.py)
-.spdd_specs/            # SPDD specs (architecture + weekly tasks)
+app/
+  ├── api/main.py                # FastAPI entrypoint, request-id middleware, /healthz + /readyz
+  ├── core/
+  │   ├── config.py              # Settings (pydantic-settings) + cached get_settings()
+  │   ├── logging.py             # configure_logging, request_id ContextVar, redaction, truncation
+  │   ├── exceptions.py          # LLMProviderError, LLMOutputValidationError
+  │   └── services_container.py  # ServicesContainer (DI bundle)
+  ├── services/
+  │   ├── llm_client.py          # LLMHTTPClient (httpx wrapper, injectable transport)
+  │   └── llm_service.py         # LLMService: complete / embed / check_liveness, retries
+  └── tools/                     # (empty — Week 3+)
+infra/                           # Dockerfile.app + docker-compose.yml
+auto/                            # Local helper scripts (start.sh)
+tests/                           # Pytest suites (config, llm_service, logging, api, health)
+.spdd_specs/                     # SPDD specs (architecture + weekly tasks)
 ```
 
 ## Local development
 
+Requires Python 3.11+ and [Poetry](https://python-poetry.org/).
+
 ```bash
-poetry install --all-extras   # --all-extras pulls the dev group (pytest, ruff, mypy)
+poetry install --all-extras          # --all-extras pulls the dev group (pytest, ruff, mypy)
+poetry run pytest -q                  # unit tests; no network/DB needed (httpx MockTransport)
 poetry run ruff check .
-poetry run pytest -q
-poetry run mypy app
+poetry run mypy --strict --explicit-package-bases app
 ```
+
+All three (pytest / ruff / mypy --strict) must pass before a PR.
+
+### The canonical Ollama path
+
+Ollama is the canonical local provider (`LLM_PROVIDER=ollama`); OpenRouter is
+an optional escape hatch. Install Ollama, then pull the models referenced in
+`.env`:
+
+```bash
+ollama pull gemma3:27b          # OLLAMA_CHAT_MODEL (synthesis)
+ollama pull qwen3.5:4b          # OLLAMA_OPS_MODEL (tagger / safety / judge, later weeks)
+ollama pull nomic-embed-text    # EMBEDDING_MODEL (768-dim, see EMBEDDING_DIM)
+curl http://localhost:11434/api/tags   # confirm the daemon is up (this is what /readyz probes)
+```
+
+To use OpenRouter instead: set `LLM_PROVIDER=openrouter` and `OPENROUTER_API_KEY`
+in `.env`. `Settings` raises at startup if the key is missing under that provider.
+
+### Reaching Ollama from inside Docker
+
+Inside the `app` container, `localhost` means the container — not your host —
+so `OLLAMA_BASE_URL=http://localhost:11434` cannot reach a host-side Ollama and
+`/readyz` returns `503`. On Docker Desktop (macOS/Windows) point the container
+at the host gateway instead:
+
+```yaml
+# infra/docker-compose.yml → services.app
+environment:
+  - OLLAMA_BASE_URL=http://host.docker.internal:11434
+extra_hosts:
+  - "host.docker.internal:host-gateway"   # required on Linux; no-op on Docker Desktop
+```
+
+Also ensure Ollama listens beyond loopback (`OLLAMA_HOST=0.0.0.0:11434`) so the
+container's connection (arriving via the host gateway IP) is accepted. Running
+the app directly with `uvicorn` on the host needs neither change — `localhost`
+works there.
 
 ## Health endpoints
 
-| Endpoint | Returns | Notes |
-|---|---|---|
-| `GET /healthz` | `200 {"status": "ok"}` | Liveness only; does not check the database. |
+| Endpoint       | Returns                                                                               | Notes                                                                                                                                                             |
+| -------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /healthz` | `200 {"status": "ok"}`                                                                | Pure liveness; touches no dependency.                                                                                                                             |
+| `GET /readyz`  | `200 {"status":"ready","provider":...}` / `503 {"error_code","message","request_id"}` | Single short-timeout probe of the configured provider (Ollama `GET /api/tags`, OpenRouter `GET /v1/models`); **no retry**. Postgres readiness is added in Week 2. |
+
+Every response echoes an `X-Request-Id` header (reused from the request or a
+fresh UUIDv4), bound into the logging ContextVar for the request's lifetime.
+
+## Logging
+
+`LOG_FORMAT=json` emits one JSON object per record with at least `timestamp`,
+`level`, `request_id`, `event` (and `duration_ms` where applicable);
+`LOG_FORMAT=text` emits a readable key-value line. Secrets (`Authorization`,
+`*_api_key`, …) are redacted at the logging layer and prompts are truncated to
+500 chars with a `_truncated: true` flag — never log raw provider headers.
 
 ## Configuration
 
 All environment variables are declared in `.env.example`; copy it to `.env`.
-Key settings: `LLM_PROVIDER` (default `ollama`), `PG_DSN`, `LOG_FORMAT`, and
-the Ollama/embedding model fields. `.env` is git-ignored and never committed.
+Key settings: `LLM_PROVIDER` (default `ollama`), `PG_DSN`, `LOG_FORMAT`,
+`OPENROUTER_API_KEY` (required only under `openrouter`), and the
+Ollama/embedding model fields. `config.py` is the only module permitted to read
+the environment; everything else receives a `Settings` instance. `.env` is
+git-ignored and never committed.

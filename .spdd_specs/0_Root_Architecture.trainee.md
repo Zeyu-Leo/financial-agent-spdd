@@ -292,12 +292,14 @@ a destructive `DROP TABLE doc_embeddings; CREATE TABLE …` operation.
 
 ### Major trade-offs accepted
 
-1. **Ollama primary, OpenRouter optional escape hatch.** Ollama is the
-   supported canonical path so the project runs entirely on a developer
-   laptop with no external billing surface. OpenRouter is wired and
-   tested via `LLM_PROVIDER=openrouter`, but its absence must not break
-   anything — every default points at Ollama, every required key is
-   provider-conditional.
+1. **Ollama primary; OpenRouter and Portkey optional escape hatches.**
+   Ollama is the supported canonical path so the project runs entirely
+   on a developer laptop with no external billing surface. OpenRouter
+   (`LLM_PROVIDER=openrouter`, direct) and the Portkey gateway
+   (`LLM_PROVIDER=portkey`, OpenAI-compatible routing/observability
+   layer in front of an upstream provider) are wired and tested, but
+   their absence must not break anything — every default points at
+   Ollama, every required key is provider-conditional.
 2. **Stateless graph runs.** No long-lived agent memory beyond
    `conversation_history` passed in by the caller. Persistence belongs
    to the caller (UI session, evaluation runner).
