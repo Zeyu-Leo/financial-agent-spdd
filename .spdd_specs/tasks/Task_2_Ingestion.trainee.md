@@ -109,6 +109,13 @@ decide whether to upgrade.
   the filters (ILIKE on `narrative` for the keyword), sorted by
   `date_received` desc.
 
+> **Note on row count.** The final `complaints` row count is whatever
+> the idempotent UPSERT on `complaint_id` yields — the CSV contains
+> duplicate `complaint_id`s, so the table lands one row per *unique*
+> id, not necessarily 1,000. We do not assert a fixed count; the
+> acceptance criterion is "one row per unique `complaint_id`, no NULLs"
+> plus a logged dedup count (Safeguard 4).
+
 ---
 
 ## Entities
@@ -182,7 +189,7 @@ class ComplaintRow {
 
 class DocumentChunk {
   <<pydantic>>
-  +int doc_id
+  +int chunk_id
   +str source_file
   +str title
   +str section
@@ -225,7 +232,8 @@ DocumentChunk ..> doc_embeddings : projection of
 > reads `complaints` with an `ILIKE` narrative filter + exact `product`
 > match and needs no embedding. Both project raw rows into Pydantic
 > DTOs (`ComplaintRow` / `DocumentChunk`) before returning — never raw
-> SQLAlchemy rows. `DocumentChunk` carries `doc_id` so retrieved chunks
+> SQLAlchemy rows. `DocumentChunk` carries `chunk_id` (aligned with the
+> destination contract — it is `docs.id`, the PK) so retrieved chunks
 > stay traceable (feeds `FeedbackEvent.retrieved_doc_ids` in a later
 > task); `score = 1 - cosine_distance` is the v0 similarity contract.
 
@@ -293,6 +301,13 @@ DocumentChunk ..> doc_embeddings : projection of
    warning count — even though it is more complex than a plain INSERT
    and re-embeds every chunk on each re-run, costing time and tokens.
 
+5. **In-script `CREATE TABLE IF NOT EXISTS` over a migration tool.**
+   We accept applying the DDL from the ingest path (via `apply_schema`
+   with a `/* EMBEDDING_DIM */` substitution) because it keeps the v0
+   surface small and matches the Constitution's accepted trade-off,
+   even though it has no versioning, no rollback, and no
+   applied-migrations metadata table — a real schema layer needs
+   Alembic-style reversible migrations. Deferred to a later task.
 
 ---
 
@@ -381,7 +396,7 @@ class RetrievalService:
 
 ## Operations (strict execution order)
 
-> The first 3 steps are pinned. The remaining steps are derived from
+> The first steps are pinned. The remaining steps are derived from
 > the Approach. Tests are interleaved with the implementation they
 > exercise (TDD) rather than batched at the end: the chunker test
 > follows the chunker, and the `retrieve_*` tests are written *before*
@@ -389,49 +404,57 @@ class RetrievalService:
 > mentor will sign off the full Operations list before you generate
 > code.
 
-1. **Apply the schema** in
+1. **Guard on artifacts.** Both ingest scripts abort immediately if
+   `data/samples/complaints_sample.csv` or any of the three
+   `data/raw_docs/*.txt` files is missing or zero bytes, with an error
+   telling the user to run the existing data-prep scripts
+   (`build_starter_sample.py`, `fetch_starter_docs.py`). Never call
+   those data-prep scripts from the new ingest code (Safeguard).
+2. **Apply the schema** in
    `data_pipelines/schema/0001_create_tables.sql`. Make it idempotent
    (`CREATE … IF NOT EXISTS`) so re-running is safe.
-2. **Implement `app/core/db.py`** with the four helpers in
+3. **Implement `app/core/db.py`** with the four helpers in
    *Method signatures*: `make_engine`, `get_sessionmaker`,
    `ensure_pgvector_extension`, and `apply_schema`. The
    `apply_schema` helper substitutes a `/* EMBEDDING_DIM */`
    placeholder so the same SQL works for both 768-d and 1536-d
    embeddings.
-3. **Implement `data_pipelines/starter_corpus.py`** with a chunker
+4. **Implement `data_pipelines/starter_corpus.py`** with a chunker
    helper (fixed-size with overlap) and a CSV reader that yields
    `dict`s in the canonical column order.
-4. **Test the chunker.** Unit test for the fixed-size/overlap
+5. **Test the chunker.** Unit test for the fixed-size/overlap
    chunker — no I/O, pure function, so it locks the chunking
-   behaviour immediately after step 3 (empty input, sub-chunk-size
+   behaviour immediately after step 4 (empty input, sub-chunk-size
    input, overlap boundary).
-5. **Implement
+6. **Implement
    `data_pipelines/ingest_tables/ingest_public_data.py`** with an
    idempotent UPSERT on `complaint_id`. Surface a warning log with
    the dedup count (the starter sample carries duplicate
    `complaint_id`s — Safeguard 4).
-6. **Implement
+7. **Implement
    `data_pipelines/ingest_docs/embed_starter_docs.py`** that
    chunks and embeds, then writes both `docs` and `doc_embeddings`
-   in one transaction per file.
-7. **Write the `retrieve_*` tests first (TDD).** A SQL-shape test
+   in one transaction per file. Embed in batches of 32 inputs per
+   `LLMService.embed` call; skip empty narratives is N/A here (docs
+   only), but do skip zero-length chunks.
+8. **Write the `retrieve_*` tests first (TDD).** A SQL-shape test
    for each `retrieve_*` method using a fixture loaded into the test
-   DB. These are written *before* step 8 and are expected to fail
+   DB. These are written *before* step 9 and are expected to fail
    until `RetrievalService` exists. Cover the two retrieval
    acceptance criteria (cosine-ascending `top_k` for docs;
    `ILIKE` + `product` filter, `date_received` desc for complaints).
-8. **Implement `RetrievalService`** for both methods, driving the
-   step-7 tests to green. Use SQLAlchemy `text()` with bound params;
+9. **Implement `RetrievalService`** for both methods, driving the
+   step-8 tests to green. Use SQLAlchemy `text()` with bound params;
    never string-format SQL. Return typed Pydantic projections, never
    raw SQL rows.
-9. **Wire `RetrievalService` into `ServicesContainer`** (extend the
-   dataclass from Task 1; construct once in the `app/api/main.py`
-   lifespan, never ad hoc elsewhere).
-10. **Update `README.md` *Data prep* section** with the two ingest
+10. **Wire `RetrievalService` into `ServicesContainer`** (extend the
+    dataclass from Task 1; construct once in the `app/api/main.py`
+    lifespan, never ad hoc elsewhere).
+11. **Update `README.md` *Data prep* section** with the two ingest
     commands plus the `complaints` row count and `docs` chunk count
     you observe after a fresh run. Drop a one-line "what you'll see"
     so a fresh trainee knows the expected scale.
-11. **Verify** by running `pytest`, `ruff`, `mypy --strict`, and
+12. **Verify** by running `pytest`, `ruff`, `mypy --strict`, and
     a manual `python -c "import asyncio; from app.api.main import …;
     print(asyncio.run(svc.retrieve_docs('overdraft', top_k=3)))"`.
 
@@ -447,6 +470,13 @@ class RetrievalService:
   rows.
 - Embedding dim must equal `Settings.embedding_dim`. A mismatch
   is a hard fail at insert time.
+- DB sessions are scoped via context managers; no orphan sessions.
+- Embedding vectors are handled as float32 only (no float64).
+- Ingest scripts expose `argparse` flags (`--csv-path`, `--docs-dir`)
+  so tests can swap inputs without monkeypatching globals, behind an
+  `if __name__ == "__main__":` guard.
+- `DocumentChunk` / `ComplaintRow` live in `retrieval_service.py` for
+  this task; Task 3 moves them to `app/core/state.py` and re-exports.
 
 ---
 
