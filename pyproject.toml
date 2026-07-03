@@ -10,6 +10,9 @@ dependencies = [
     "pydantic>=2.7,<3.0",
     "pydantic-settings>=2.4,<3.0",
     "loguru>=0.7,<1.0",          # OR structlog; pick exactly one
+    "sqlalchemy (>=2.0,<3.0)",
+    "psycopg[binary] (>=3.1,<4.0)",
+    "pgvector (>=0.2,<1.0)",
 ]
 
 [project.optional-dependencies]
