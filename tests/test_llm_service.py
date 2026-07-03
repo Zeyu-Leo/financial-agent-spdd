@@ -30,9 +30,13 @@ def _no_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _service(provider: str, handler: httpx.MockTransport, *, embedding_dim: int = 3) -> LLMService:
+    # Both capabilities share one provider here, so chat and embedding use the
+    # same client — covers the single-provider path. Cross-provider wiring is
+    # exercised in test_api / the lifespan.
     settings = Settings(  # type: ignore[call-arg]
-        pg_dsn="postgresql://x",
-        llm_provider=provider,
+        pg_dsn="postgresql+psycopg://x",
+        chat_provider=provider,
+        embedding_provider=provider,
         openrouter_api_key="sk-test" if provider == "openrouter" else None,
         portkey_api_key="pk-test" if provider == "portkey" else None,
         portkey_provider="openai" if provider == "portkey" else None,
@@ -50,7 +54,7 @@ def _service(provider: str, handler: httpx.MockTransport, *, embedding_dim: int 
             "x-portkey-provider": settings.portkey_provider or "",
         }
     client = LLMHTTPClient(base, transport=handler, extra_headers=extra_headers)
-    return LLMService(settings, client)
+    return LLMService(settings, client, client)
 
 
 # --------------------------------------------------------------------- #

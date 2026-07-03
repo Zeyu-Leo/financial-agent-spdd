@@ -138,15 +138,16 @@ def _require_docs(docs_dir: Path) -> list[Path]:
 
 async def _run(settings: Settings, docs_dir: Path) -> tuple[int, int]:
     engine = make_engine(settings.pg_dsn)
-    http_client = build_http_client(settings)
-    llm = LLMService(settings, http_client)
+    # Only the embedding client is needed here; complete() is never called.
+    embed_client = build_http_client(settings, settings.embedding_provider)
+    llm = LLMService(settings, embed_client, embed_client)
     try:
         ensure_pgvector_extension(engine)
         apply_schema(engine, _SCHEMA_SQL, embedding_dim=settings.embedding_dim)
         n_files = len(sorted(docs_dir.glob("*.txt")))
         chunks = await ingest(engine, llm, docs_dir)
     finally:
-        await http_client.aclose()
+        await embed_client.aclose()
         engine.dispose()
     return n_files, chunks
 

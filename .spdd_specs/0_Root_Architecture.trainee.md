@@ -292,14 +292,21 @@ a destructive `DROP TABLE doc_embeddings; CREATE TABLE …` operation.
 
 ### Major trade-offs accepted
 
-1. **Ollama primary; OpenRouter and Portkey optional escape hatches.**
+1. **Ollama primary; per-capability provider selection.**
    Ollama is the supported canonical path so the project runs entirely
-   on a developer laptop with no external billing surface. OpenRouter
-   (`LLM_PROVIDER=openrouter`, direct) and the Portkey gateway
-   (`LLM_PROVIDER=portkey`, OpenAI-compatible routing/observability
-   layer in front of an upstream provider) are wired and tested, but
-   their absence must not break anything — every default points at
-   Ollama, every required key is provider-conditional.
+   on a developer laptop with no external billing surface. Chat and
+   embedding each choose their provider independently (`CHAT_PROVIDER` /
+   `EMBEDDING_PROVIDER`, each `"ollama" | "openrouter" | "portkey"`,
+   default `ollama`). This lets a deployment embed locally on Ollama
+   (free, 768-dim, no schema change) while routing chat through the
+   Portkey gateway for a stronger hosted model — or use one provider for
+   both. OpenRouter (direct) and the Portkey gateway (OpenAI-compatible
+   routing/observability layer in front of an upstream provider) are
+   wired and tested, but their absence must not break anything — every
+   default points at Ollama, every required key is provider-conditional.
+   The embedding provider/model must stay fixed for the life of a vector
+   store: ingest-time and query-time embeddings must come from the same
+   model, and a dimension change is a destructive schema rebuild.
 2. **Stateless graph runs.** No long-lived agent memory beyond
    `conversation_history` passed in by the caller. Persistence belongs
    to the caller (UI session, evaluation runner).
@@ -518,18 +525,25 @@ it also amends this Constitution** in the same commit.
 
 - Single `Settings` class (Pydantic Settings). Environment variables
   override defaults; `.env` is loaded only outside Docker.
-- Required env keys (always): `PG_DSN`, `LLM_PROVIDER`
-  (`"ollama" | "openrouter"`, default `"ollama"`), `LOG_FORMAT`
-  (`"json" | "text"`).
-- Conditionally required: `OPENROUTER_API_KEY` is required only when
-  `LLM_PROVIDER=openrouter`. A `model_validator` raises at construction
-  time if the key is missing under that provider.
+- Required env keys (always): `PG_DSN`, `CHAT_PROVIDER` and
+  `EMBEDDING_PROVIDER` (each `"ollama" | "openrouter" | "portkey"`,
+  default `"ollama"`), `LOG_FORMAT` (`"json" | "text"`). Chat and
+  embedding are configured independently: they may select the same
+  provider or different ones.
+- Conditionally required: a provider's keys are required when *either*
+  `CHAT_PROVIDER` or `EMBEDDING_PROVIDER` selects it. `OPENROUTER_API_KEY`
+  when either uses `openrouter`; `PORTKEY_API_KEY` and `PORTKEY_PROVIDER`
+  when either uses `portkey`. A `model_validator` raises at construction
+  time if a required key is missing.
 - Defaulted (override per environment): `OLLAMA_BASE_URL`
   (default `http://localhost:11434`), `OLLAMA_CHAT_MODEL` (synthesis),
   `OLLAMA_OPS_MODEL` (tagger / safety / judge), `EMBEDDING_MODEL`
-  (default `nomic-embed-text`), `EMBEDDING_DIM` (default `768`),
-  `OPENROUTER_BASE_URL`, `OPENROUTER_MODEL`.
-- Optional keys: `LANGSMITH_API_KEY`, `PHOENIX_COLLECTOR_ENDPOINT`.
+  (default `nomic-embed-text`), `EMBEDDING_DIM` (default `768`; must
+  match the embedding provider's model output width),
+  `OPENROUTER_BASE_URL`, `OPENROUTER_MODEL`, `PORTKEY_BASE_URL`,
+  `PORTKEY_MODEL`.
+- Optional keys: `PORTKEY_PROVIDER_API_KEY`, `LANGSMITH_API_KEY`,
+  `PHOENIX_COLLECTOR_ENDPOINT`.
 
 ### Testing contract
 

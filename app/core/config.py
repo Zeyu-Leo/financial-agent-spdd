@@ -14,9 +14,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # Always required.
+    # Always required. Chat and embedding pick their provider independently
+    # (same provider for both, or different — e.g. Ollama embed + Portkey chat).
     pg_dsn: str
-    llm_provider: Literal["ollama", "openrouter", "portkey"] = "ollama"
+    chat_provider: Literal["ollama", "openrouter", "portkey"] = "ollama"
+    embedding_provider: Literal["ollama", "openrouter", "portkey"] = "ollama"
     log_format: Literal["json", "text"] = "text"
 
     # OpenRouter. The api key is conditionally required (see validator).
@@ -44,13 +46,21 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _require_provider_keys(self) -> "Settings":
-        if self.llm_provider == "openrouter" and not self.openrouter_api_key:
-            raise ValueError("OPENROUTER_API_KEY required when LLM_PROVIDER=openrouter")
-        if self.llm_provider == "portkey":
+        # A provider's keys are required when EITHER axis selects it.
+        providers = {self.chat_provider, self.embedding_provider}
+        if "openrouter" in providers and not self.openrouter_api_key:
+            raise ValueError(
+                "OPENROUTER_API_KEY required when CHAT_PROVIDER or EMBEDDING_PROVIDER=openrouter"
+            )
+        if "portkey" in providers:
             if not self.portkey_api_key:
-                raise ValueError("PORTKEY_API_KEY required when LLM_PROVIDER=portkey")
+                raise ValueError(
+                    "PORTKEY_API_KEY required when CHAT_PROVIDER or EMBEDDING_PROVIDER=portkey"
+                )
             if not self.portkey_provider:
-                raise ValueError("PORTKEY_PROVIDER required when LLM_PROVIDER=portkey")
+                raise ValueError(
+                    "PORTKEY_PROVIDER required when CHAT_PROVIDER or EMBEDDING_PROVIDER=portkey"
+                )
         return self
 
 
