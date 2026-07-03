@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 @pytest.fixture
 def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     # Ollama provider needs no api key; give a pg_dsn so Settings validates.
-    monkeypatch.setenv("PG_DSN", "postgresql://x")
+    monkeypatch.setenv("PG_DSN", "postgresql+psycopg://x")
     monkeypatch.setenv("LLM_PROVIDER", "ollama")
     from app.core.config import get_settings
 

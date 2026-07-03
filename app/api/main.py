@@ -15,6 +15,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 
 from app.core.config import Settings, get_settings
+from app.core.db import get_sessionmaker, make_engine
 from app.core.exceptions import LLMProviderError
 from app.core.logging import (
     bind_request_id,
@@ -25,11 +26,17 @@ from app.core.logging import (
 from app.core.services_container import ServicesContainer
 from app.services.llm_client import LLMHTTPClient
 from app.services.llm_service import LLMService
+from app.services.retrieval_service import RetrievalService
 
 REQUEST_ID_HEADER = "X-Request-Id"
 
 
-def _build_http_client(settings: Settings) -> LLMHTTPClient:
+def build_http_client(settings: Settings) -> LLMHTTPClient:
+    """Construct the provider-specific HTTP client from ``Settings``.
+
+    The single place provider selection happens. Reused by the offline
+    ingest scripts so provider branching is never duplicated.
+    """
     if settings.llm_provider == "openrouter":
         return LLMHTTPClient(
             settings.openrouter_base_url,
@@ -53,16 +60,24 @@ def _build_http_client(settings: Settings) -> LLMHTTPClient:
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     configure_logging(settings.log_format)
-    http_client = _build_http_client(settings)
+    http_client = build_http_client(settings)
+    llm_service = LLMService(settings, http_client)
+    engine = make_engine(settings.pg_dsn)
     container = ServicesContainer(
         settings=settings,
-        llm_service=LLMService(settings, http_client),
+        llm_service=llm_service,
+        retrieval=RetrievalService(
+            get_sessionmaker(engine),
+            llm_service,
+            embedding_dim=settings.embedding_dim,
+        ),
     )
     app.state.container = container
     try:
         yield
     finally:
         await http_client.aclose()
+        engine.dispose()
 
 
 app = FastAPI(title="Financial Helpdesk Agent", version="0.1.0", lifespan=lifespan)
