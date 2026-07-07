@@ -38,15 +38,23 @@ def _elapsed_ms(start: float) -> int:
 
 
 class LLMService:
-    def __init__(self, settings: Settings, http_client: LLMHTTPClient) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        chat_client: LLMHTTPClient,
+        embedding_client: LLMHTTPClient,
+    ) -> None:
         self._settings = settings
-        self._http = http_client
+        # Chat and embedding may target different providers, so each has its
+        # own HTTP client (main.py may pass the same object when they match).
+        self._chat = chat_client
+        self._embed = embedding_client
 
     def _chat_model(self) -> str:
-        """Default chat model for the configured provider."""
-        if self._settings.llm_provider == "portkey":
+        """Default chat model for the chat provider."""
+        if self._settings.chat_provider == "portkey":
             return self._settings.portkey_model
-        if self._settings.llm_provider == "ollama":
+        if self._settings.chat_provider == "ollama":
             return self._settings.ollama_chat_model
         return self._settings.openrouter_model
 
@@ -63,7 +71,7 @@ class LLMService:
         response_format: str | None = None,
         request_id: str | None = None,
     ) -> str:
-        provider = self._settings.llm_provider
+        provider = self._settings.chat_provider
         rid = request_id or get_request_id()
         if provider in _OPENAI_COMPATIBLE:
             url = "/chat/completions"
@@ -90,7 +98,7 @@ class LLMService:
         prompt_preview, truncated = truncate_prompt(str(messages))
         start = time.perf_counter()
         try:
-            data = await self._request_with_retries(url, payload, provider, rid)
+            data = await self._request_with_retries(url, payload, provider, rid, self._chat)
         except LLMProviderError:
             logger.error(
                 "llm.complete.failed",
@@ -121,7 +129,7 @@ class LLMService:
         model: str | None = None,
         request_id: str | None = None,
     ) -> list[list[float]]:
-        provider = self._settings.llm_provider
+        provider = self._settings.embedding_provider
         rid = request_id or get_request_id()
         if provider in _OPENAI_COMPATIBLE:
             url = "/embeddings"
@@ -138,7 +146,7 @@ class LLMService:
 
         start = time.perf_counter()
         try:
-            data = await self._request_with_retries(url, payload, provider, rid)
+            data = await self._request_with_retries(url, payload, provider, rid, self._embed)
         except LLMProviderError:
             logger.error(
                 "llm.embed.failed",
@@ -164,16 +172,24 @@ class LLMService:
         return vectors
 
     async def check_liveness(self, *, request_id: str | None = None) -> None:
-        """Probe the configured provider once; raise if unreachable.
+        """Probe every configured provider once; raise if any is unreachable.
 
-        Deliberately bypasses the 3-attempt retry path: a readiness probe
-        must answer fast, not wait out backoff. Used by ``GET /readyz``.
+        Chat and embedding may target different providers, so both are
+        probed (deduplicated when they share a client). Deliberately
+        bypasses the 3-attempt retry path: a readiness probe must answer
+        fast, not wait out backoff. Used by ``GET /readyz``.
         """
-        provider = self._settings.llm_provider
         rid = request_id or get_request_id()
+        targets: list[tuple[str, LLMHTTPClient]] = [(self._settings.chat_provider, self._chat)]
+        if self._embed is not self._chat:
+            targets.append((self._settings.embedding_provider, self._embed))
+        for provider, client in targets:
+            await self._probe(provider, client, rid)
+
+    async def _probe(self, provider: str, client: LLMHTTPClient, rid: str | None) -> None:
         url = "/api/tags" if provider == "ollama" else "/models"
         try:
-            response = await self._http.get(url, timeout=LIVENESS_TIMEOUT_SECONDS)
+            response = await client.get(url, timeout=LIVENESS_TIMEOUT_SECONDS)
         except _TRANSIENT_NETWORK_ERRORS as exc:
             raise LLMProviderError(
                 "provider liveness probe failed to connect",
@@ -199,11 +215,12 @@ class LLMService:
         payload: dict[str, Any],
         provider: str,
         request_id: str | None,
+        client: LLMHTTPClient,
     ) -> dict[str, Any]:
         last_exc: Exception | None = None
         for attempt in range(1, MAX_ATTEMPTS + 1):
             try:
-                response = await self._http.post_json(url, payload)
+                response = await client.post_json(url, payload)
             except _TRANSIENT_NETWORK_ERRORS as exc:
                 last_exc = exc
                 logger.warning(

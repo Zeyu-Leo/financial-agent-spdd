@@ -10,6 +10,9 @@ dependencies = [
     "pydantic>=2.7,<3.0",
     "pydantic-settings>=2.4,<3.0",
     "loguru>=0.7,<1.0",          # OR structlog; pick exactly one
+    "sqlalchemy (>=2.0,<3.0)",
+    "psycopg[binary] (>=3.1,<4.0)",
+    "pgvector (>=0.2,<1.0)",
 ]
 
 [project.optional-dependencies]
@@ -41,6 +44,10 @@ ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["B011", "S101"]
+# Delivered data-prep scripts are vendored reference artifacts (Constitution:
+# "already built; do not modify"); do not flag their style like first-party code.
+"data_pipelines/ingest_tables/build_starter_sample.py" = ["RET504"]
+"data_pipelines/ingest_docs/fetch_starter_docs.py" = ["RET504"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -52,6 +59,9 @@ files = ["app"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# network tests need a live provider/Postgres; skipped by default. Run them
+# explicitly with: pytest -m network
+addopts = "-m 'not network'"
 markers = [
     "network: requires live network or Postgres; skipped by default",
 ]

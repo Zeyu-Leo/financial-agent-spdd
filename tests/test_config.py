@@ -13,27 +13,27 @@ def _settings(**env: str) -> Settings:
 
 
 def test_openrouter_model_default_prints() -> None:
-    s = _settings(pg_dsn="postgresql://x", llm_provider="ollama")
+    s = _settings(pg_dsn="postgresql://x", chat_provider="ollama")
     assert s.openrouter_model == "gpt-4.1-mini"
 
 
 def test_openrouter_requires_api_key() -> None:
     with pytest.raises(ValueError, match="OPENROUTER_API_KEY"):
-        _settings(pg_dsn="postgresql://x", llm_provider="openrouter")
+        _settings(pg_dsn="postgresql://x", chat_provider="openrouter")
 
 
 def test_ollama_does_not_require_openrouter_key() -> None:
-    s = _settings(pg_dsn="postgresql://x", llm_provider="ollama")
+    s = _settings(pg_dsn="postgresql://x", chat_provider="ollama")
     assert s.openrouter_api_key is None
 
 
 def test_openrouter_with_key_validates() -> None:
     s = _settings(
         pg_dsn="postgresql://x",
-        llm_provider="openrouter",
+        chat_provider="openrouter",
         openrouter_api_key="sk-test",
     )
-    assert s.llm_provider == "openrouter"
+    assert s.chat_provider == "openrouter"
 
 
 def _clear_portkey_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -46,23 +46,23 @@ def _clear_portkey_env(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_portkey_requires_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     _clear_portkey_env(monkeypatch)
     with pytest.raises(ValueError, match="PORTKEY_API_KEY"):
-        _settings(pg_dsn="postgresql://x", llm_provider="portkey", portkey_provider="openai")
+        _settings(pg_dsn="postgresql://x", chat_provider="portkey", portkey_provider="openai")
 
 
 def test_portkey_requires_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     _clear_portkey_env(monkeypatch)
     with pytest.raises(ValueError, match="PORTKEY_PROVIDER"):
-        _settings(pg_dsn="postgresql://x", llm_provider="portkey", portkey_api_key="pk-test")
+        _settings(pg_dsn="postgresql://x", chat_provider="portkey", portkey_api_key="pk-test")
 
 
 def test_portkey_with_keys_validates() -> None:
     s = _settings(
         pg_dsn="postgresql://x",
-        llm_provider="portkey",
+        chat_provider="portkey",
         portkey_api_key="pk-test",
         portkey_provider="openai",
     )
-    assert s.llm_provider == "portkey"
+    assert s.chat_provider == "portkey"
 
 
 def test_get_settings_is_cached() -> None:

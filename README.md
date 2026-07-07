@@ -52,7 +52,42 @@ poetry run ruff check .
 poetry run mypy --strict --explicit-package-bases app
 ```
 
-All three (pytest / ruff / mypy --strict) must pass before a PR.
+All three (pytest / ruff / mypy --strict) must pass before a PR. Tests
+that need a live Postgres/provider are marked `network` and skipped by
+default; run them with `poetry run pytest -m network`.
+
+## Data prep (RAG v0 ingestion)
+
+The starter corpus (`data/samples/complaints_sample.csv` and
+`data/raw_docs/*.txt`) is already on disk. Two idempotent scripts load it
+into Postgres + `pgvector`. The one-shot helper brings up the database,
+drops any stale tables, and runs both scripts:
+
+```bash
+./auto/ingest.sh              # fresh rebuild (drops tables first)
+./auto/ingest.sh --no-reset   # keep existing rows (idempotent UPSERT only)
+```
+
+Or run the steps by hand (the CSV script needs only Postgres; the docs
+script also needs a running Ollama for embeddings):
+
+```bash
+docker compose -f infra/docker-compose.yml up -d db      # Postgres + pgvector
+python -m data_pipelines.ingest_tables.ingest_public_data # CSV  -> complaints
+python -m data_pipelines.ingest_docs.embed_starter_docs   # txt  -> docs + doc_embeddings
+```
+
+Reach for `--no-reset` on the helper (or the manual steps) only when you
+want to layer onto existing rows; the default fresh rebuild also clears
+any leftover rows a `pytest -m network` run seeded into the tables.
+
+**What you'll see:** the CSV has 1,000 rows but only **400 unique
+`complaint_id`s** (whole-row duplicates), so the idempotent UPSERT lands
+**400 rows** in `complaints` and logs a `duplicates_collapsed=600`
+warning — this is expected, not data loss. The docs script produces
+**18 chunks** across the three files (naive 600-char/100-overlap
+chunking), one `doc_embeddings` row per chunk. Both scripts are safe to
+re-run.
 
 ### The canonical Ollama path
 
