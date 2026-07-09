@@ -28,12 +28,28 @@ full.
 through a linear multi-node graph. Pure-ish nodes (return
 *partial* state) so each can be unit-tested in isolation.
 
-**TODO(trainee) — Risks noticed.** List **at least three** risks
+**Risks noticed.** List **at least three** risks
 specific to a multi-node LangGraph application and how your
 design handles each. Hint domains: state-merge semantics when two
 nodes write the same field, lifespan-vs-per-request graph
 compilation, error propagation across node boundaries, the HTTP
 status-code contract for `/agent/query`.
+
+- Risk 1 — Conflicting state writes
+   - Description: Multiple nodes may write the same `AgentState` field, causing inconsistent or lost values.
+   - Mitigation: Enforce single-writer-per-field or a simple merge rule and log any overwrites with `request_id` and `node_name`.
+
+- Risk 2 — Graph compilation timing
+   - Description: Compiling the graph once (lifespan) vs per-request is a trade-off between performance and flexibility.
+   - Mitigation: Default to lifespan compilation; enable per-request compile only when needed and gate it with a feature flag and benchmarks.
+
+- Risk 3 — Node error propagation
+   - Description: Unhandled node errors can crash runs or return wrong HTTP codes.
+   - Mitigation: Translate `LLMProviderError` to HTTP 502, other failures to HTTP 500, and have nodes catch recoverable errors and continue when safe.
+
+- Risk 4 — HTTP status-code contract
+   - Description: Ambiguous error-to-status mapping makes client behavior unclear.
+   - Mitigation: Specify mapping (validation→400, LLM→502, internal→500), require `{"error_code","message","request_id"}` and always set `X-Request-Id`.
 
 ### Why this task exists
 
@@ -83,18 +99,49 @@ add safety, and ship a UI; this Task ships the plumbing.
 | `AgentRunner` | Thin wrapper around the compiled LangGraph runnable. |
 | `AgentQueryRequest` / `AgentQueryResponse` | Pydantic models for the endpoint. |
 
-### Graph + class diagram — TODO(trainee)
+### Graph + class diagram
 
-> Per the *SPDD discipline* norm, ship two diagrams here:
->
-> 1. A `classDiagram` showing `AgentRunner`, `StateGraph`,
->    `AgentState`, `ServicesContainer`, the request/response
->    Pydantic models, and how they collaborate.
-> 2. A `flowchart` showing the node order from `START` to `END`.
->
-> The flowchart is the load-bearing artifact for code review:
-> reviewers reason about edge order from the diagram, not from
-> the code.
+Below are the Mermaid `classDiagram` and `flowchart` that document the runtime structure and node order for the agent.
+
+```mermaid
+classDiagram
+      class AgentRunner {
+         +__init__(graph: CompiledStateGraph)
+         +run(user_query, session_id, conversation_history, request_id) AgentState
+      }
+      class CompiledStateGraph
+      class ServicesContainer {
+         +llm_service
+         +retrieval_service
+         +runner: AgentRunner
+      }
+      class AgentState
+      class AgentQueryRequest
+      class AgentQueryResponse
+
+      AgentRunner --> CompiledStateGraph : uses
+      AgentRunner --> ServicesContainer : depends on
+      ServicesContainer o-- AgentQueryRequest : provides context to
+      CompiledStateGraph ..> AgentState : transforms
+      AgentRunner ..> AgentState : produces
+      AgentQueryResponse <-- AgentRunner : mapped from
+```
+
+```mermaid
+flowchart LR
+      Start([START]) --> ingest_input[ingest_input]
+      ingest_input --> retrieve_phase[retrieve_phase]
+      retrieve_phase --> analysis_phase[analysis_phase]
+      analysis_phase --> synthesis_phase[synthesis_phase]
+      synthesis_phase --> End([END])
+      subgraph Notes
+         direction TB
+         ingest_input -- sets --> user_query
+         retrieve_phase -- fills --> retrieved_docs & structured_results
+         analysis_phase -- writes --> analysis_notes
+         synthesis_phase -- sets --> final_answer
+      end
+```
 
 ---
 
@@ -118,12 +165,28 @@ add safety, and ship a UI; this Task ships the plumbing.
    `# TODO(Task 4): replace with Jinja template <name>.j2`
    comment. Task 4 introduces `PromptService`.
 
-### TODO(trainee) — Trade-offs accepted
+### Trade-offs accepted
 
 > List **at least three** trade-offs the design above accepts.
 > Hint topics: TypedDict vs Pydantic for state, concurrent vs
 > sequential retrieval, inline prompts vs templated, FastAPI
 > dependency-injection vs lifespan-once construction.
+
+1. Trade-off 1 — TypedDict vs Pydantic for state
+   - Assessment: Choosing `TypedDict` is reasonable for lightweight internal state. Caveat: it provides no runtime validation or convenient serialization.
+   - Recommendation: Use `TypedDict` for internal runtime state, and `Pydantic` at API/persistence boundaries or when runtime validation is required.
+
+2. Trade-off 2 — Concurrent vs sequential retrieval
+   - Assessment: Concurrent retrieval reduces end-to-end latency but increases complexity (rate limits, ordering, resource usage) and can introduce nondeterminism.
+   - Recommendation: Default to concurrent retrieval for independent sources, normalize and stable-sort results before downstream consumption, and provide a configuration flag to fall back to sequential mode when determinism or resource constraints matter.
+
+3. Trade-off 3 — Inline prompts vs templated prompts
+   - Assessment: Inline prompts speed up iteration during development; templates are superior for testing, versioning, and auditability. Also watch for prompt injection and escaping issues.
+   - Recommendation: Start with inline prompts marked `# TODO(Task 4)`, then migrate to Jinja templates (or equivalent) in Task 4 with unit tests and template linting.
+
+4. Trade-off 4 — Lifespan-once construction vs per-request dependency injection
+   - Assessment: Building `AgentRunner` once at app lifespan reduces latency and resource churn but reduces per-request customization and hot-reloadability. Per-request DI improves testability and flexibility at the cost of runtime overhead.
+   - Recommendation: Use lifespan-once construction as the default for performance; expose a controlled DI/per-request hook or feature-flagged mode for test scenarios or dynamic topologies.
 
 ---
 
