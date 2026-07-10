@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   app:
     build:
@@ -9,6 +7,7 @@ services:
       - path: ../.env
         required: false
     environment:
+      PG_DSN: postgresql+psycopg://app:app@db:5432/app
       OLLAMA_BASE_URL: http://host.docker.internal:11434
     ports:
       - "8000:8000"

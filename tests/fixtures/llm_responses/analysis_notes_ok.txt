@@ -1,0 +1,4 @@
+Grounded analysis:
+- Policy snippets discuss overdraft fees and posting order.
+- Complaint patterns show fee disputes are common when balances are close to zero.
+- Advise user to request ledger-level transaction timeline and fee reversal review.

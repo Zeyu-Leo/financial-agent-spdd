@@ -1,0 +1,20 @@
+[
+  {
+    "chunk_id": 11,
+    "source_file": "overdraft_faq.txt",
+    "title": "Overdraft FAQ",
+    "section": "General",
+    "chunk_index": 0,
+    "raw_text": "Banks may assess overdraft fees when transactions post in an order that drives balances below zero.",
+    "score": 0.93
+  },
+  {
+    "chunk_id": 12,
+    "source_file": "overdraft_faq.txt",
+    "title": "Overdraft FAQ",
+    "section": "Dispute",
+    "chunk_index": 1,
+    "raw_text": "Consumers can dispute overdraft fees by requesting transaction-level posting details.",
+    "score": 0.88
+  }
+]
