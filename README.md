@@ -3,12 +3,10 @@
 A Dockerised, LangGraph-based agent that answers consumer-finance questions
 grounded in CFPB public data.
 
-**Current stage: Week 1 — Foundations.** The `app` container exposes
-`/healthz` (liveness) and `/readyz` (probes the configured LLM provider). This
-week adds the three abstractions every later week builds on: a typed
-`Settings`, a provider-agnostic `LLMService` (`complete` + `embed` over Ollama
-or OpenRouter), and structured logging with a `request_id` ContextVar. There
-is no agent graph yet — that lands in Week 3.
+**Current stage: Week 3 — Orchestration baseline.** The `app` container exposes
+`/healthz`, `/readyz`, and `POST /agent/query`. The Week 3 graph is a linear
+LangGraph flow (`ingest_input -> retrieve_phase -> analysis_phase ->
+synthesis_phase`) that combines retrieval grounding with LLM reasoning.
 
 ## Quickstart
 
@@ -17,6 +15,9 @@ cp .env.example .env
 ./auto/start.sh                      # docker compose up --build
 curl http://localhost:8000/healthz   # → {"status": "ok"}
 curl http://localhost:8000/readyz    # → 200 {"status":"ready",...} or 503 if the provider is unreachable
+curl -X POST http://localhost:8000/agent/query \
+  -H "Content-Type: application/json" \
+  -d '{"question":"My bank charged an overdraft fee but my account never went negative"}'
 ```
 
 `auto/start.sh` wraps `docker compose -f infra/docker-compose.yml up --build`.
@@ -25,16 +26,18 @@ curl http://localhost:8000/readyz    # → 200 {"status":"ready",...} or 503 if 
 
 ```text
 app/
-  ├── api/main.py                # FastAPI entrypoint, request-id middleware, /healthz + /readyz
+  ├── api/main.py                # FastAPI entrypoint, request-id middleware, /healthz + /readyz + /agent/query
   ├── core/
   │   ├── config.py              # Settings (pydantic-settings) + cached get_settings()
+  │   ├── graph.py               # Task 3 graph runner wrapper (LangGraph)
   │   ├── logging.py             # configure_logging, request_id ContextVar, redaction, truncation
+  │   ├── state.py               # AgentState TypedDict + Task 2 model re-exports
   │   ├── exceptions.py          # LLMProviderError, LLMOutputValidationError
   │   └── services_container.py  # ServicesContainer (DI bundle)
   ├── services/
   │   ├── llm_client.py          # LLMHTTPClient (httpx wrapper, injectable transport)
   │   └── llm_service.py         # LLMService: complete / embed / check_liveness, retries
-  └── tools/                     # (empty — Week 3+)
+  └── tools/                     # Retrieval + analysis + synthesis node tools
 infra/                           # Dockerfile.app + docker-compose.yml
 auto/                            # Local helper scripts (start.sh)
 tests/                           # Pytest suites (config, llm_service, logging, api, health)
@@ -134,6 +137,33 @@ works there.
 
 Every response echoes an `X-Request-Id` header (reused from the request or a
 fresh UUIDv4), bound into the logging ContextVar for the request's lifetime.
+
+## Agent Orchestration (Week 3)
+
+Graph topology (v0 baseline):
+
+```text
+START
+  -> ingest_input
+  -> retrieve_phase
+  -> analysis_phase
+  -> synthesis_phase
+  -> END
+```
+
+Quick endpoint example:
+
+```bash
+curl -X POST http://localhost:8000/agent/query \
+  -H "Content-Type: application/json" \
+  -d '{"question":"My bank charged an overdraft fee but my account never went negative"}'
+```
+
+Run a fast smoke cycle before PRs:
+
+```bash
+./scripts/smoke.sh
+```
 
 ## Logging
 

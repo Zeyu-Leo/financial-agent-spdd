@@ -10,13 +10,16 @@ from __future__ import annotations
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.config import Settings, get_settings
 from app.core.db import get_sessionmaker, make_engine
 from app.core.exceptions import LLMProviderError
+from app.core.graph import build_agent
 from app.core.logging import (
     bind_request_id,
     configure_logging,
@@ -29,6 +32,25 @@ from app.services.llm_service import LLMService
 from app.services.retrieval_service import RetrievalService
 
 REQUEST_ID_HEADER = "X-Request-Id"
+
+
+class AgentQueryRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    question: str = Field(min_length=1, max_length=4000)
+    session_id: str | None = None
+    conversation_history: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class AgentQueryResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    request_id: str
+    final_answer: str
+    retrieved_doc_ids: list[str]
+    retrieved_complaint_ids: list[str]
+    analysis_notes: str | None = None
+    debug: dict[str, Any] | None = None
 
 
 def build_http_client(settings: Settings, provider: str) -> LLMHTTPClient:
@@ -81,6 +103,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             embedding_dim=settings.embedding_dim,
         ),
     )
+    container.runner = build_agent(container)
     app.state.container = container
     try:
         yield
@@ -141,3 +164,75 @@ async def readyz() -> Response:
             "embedding_provider": container.settings.embedding_provider,
         },
     )
+
+
+@app.post("/agent/query", response_model=AgentQueryResponse)
+async def agent_query(payload: AgentQueryRequest, debug: bool = False) -> Response:
+    container: ServicesContainer = app.state.container
+    request_id = get_request_id() or str(uuid.uuid4())
+
+    if container.runner is None:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error_code": "internal_server_error",
+                "message": "agent runner is not initialised",
+                "request_id": request_id,
+            },
+        )
+
+    try:
+        result = await container.runner.run(
+            user_query=payload.question,
+            session_id=payload.session_id,
+            conversation_history=payload.conversation_history,
+            request_id=request_id,
+        )
+    except LLMProviderError as exc:
+        return JSONResponse(
+            status_code=502,
+            content={
+                "error_code": "llm_provider_error",
+                "message": str(exc),
+                "request_id": request_id,
+            },
+        )
+    except Exception as exc:  # pragma: no cover - safety net
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error_code": "internal_server_error",
+                "message": str(exc),
+                "request_id": request_id,
+            },
+        )
+
+    if result.get("error"):
+        return JSONResponse(
+            status_code=502,
+            content={
+                "error_code": "agent_execution_error",
+                "message": result["error"],
+                "request_id": request_id,
+            },
+        )
+
+    docs = result.get("retrieved_docs", [])
+    complaints = result.get("structured_results", [])
+    response = AgentQueryResponse(
+        request_id=request_id,
+        final_answer=result.get("final_answer") or "",
+        retrieved_doc_ids=[f"{doc.source_file}#{doc.chunk_index}" for doc in docs],
+        retrieved_complaint_ids=[row.complaint_id for row in complaints],
+        analysis_notes=result.get("analysis_notes"),
+        debug=(
+            {
+                "retrieved_docs": [doc.model_dump() for doc in docs],
+                "structured_results": [row.model_dump(mode="json") for row in complaints],
+                "analysis_notes": result.get("analysis_notes"),
+            }
+            if debug
+            else None
+        ),
+    )
+    return JSONResponse(status_code=200, content=response.model_dump(mode="json"))

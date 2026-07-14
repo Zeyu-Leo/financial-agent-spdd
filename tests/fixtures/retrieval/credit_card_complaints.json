@@ -1,0 +1,15 @@
+[
+  {
+    "complaint_id": "CFPB-1001",
+    "date_received": "2024-06-01",
+    "product": "Checking or savings account",
+    "sub_product": null,
+    "issue": "Overdraft, savings or rewards features",
+    "sub_issue": null,
+    "company": "Example Bank",
+    "state": "CA",
+    "narrative": "Customer reports overdraft fee while available balance looked positive.",
+    "company_response": "Closed with explanation",
+    "consumer_disputed": "Yes"
+  }
+]
