@@ -17,8 +17,8 @@ class Settings(BaseSettings):
     # Always required. Chat and embedding pick their provider independently
     # (same provider for both, or different — e.g. Ollama embed + Portkey chat).
     pg_dsn: str
-    chat_provider: Literal["ollama", "openrouter", "portkey"] = "ollama"
-    embedding_provider: Literal["ollama", "openrouter", "portkey"] = "ollama"
+    chat_provider: Literal["ollama", "openrouter", "portkey", "deepseek", "qwen"] = "ollama"
+    embedding_provider: Literal["ollama", "openrouter", "portkey", "deepseek", "qwen"] = "ollama"
     log_format: Literal["json", "text"] = "text"
 
     # OpenRouter. The api key is conditionally required (see validator).
@@ -34,6 +34,16 @@ class Settings(BaseSettings):
     portkey_provider_api_key: str | None = None  # upstream key forwarded as Authorization
     portkey_base_url: str = "https://api.portkey.ai/v1"
     portkey_model: str = "gpt-4.1-mini"
+
+    # DeepSeek. The api key is conditionally required (see validator).
+    deepseek_api_key: str | None = None
+    deepseek_base_url: str = "https://api.deepseek.com/v1"
+    deepseek_model: str = "deepseek-chat"
+
+    # Qwen / Alibaba DashScope (OpenAI-compatible). The api key is conditionally required.
+    qwen_api_key: str | None = None
+    qwen_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    qwen_model: str = "qwen-plus"
 
     # Ollama (canonical local provider).
     ollama_base_url: str = "http://localhost:11434"
@@ -61,6 +71,14 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "PORTKEY_PROVIDER required when CHAT_PROVIDER or EMBEDDING_PROVIDER=portkey"
                 )
+        if "deepseek" in providers and not self.deepseek_api_key:
+            raise ValueError(
+                "DEEPSEEK_API_KEY required when CHAT_PROVIDER or EMBEDDING_PROVIDER=deepseek"
+            )
+        if "qwen" in providers and not self.qwen_api_key:
+            raise ValueError(
+                "QWEN_API_KEY required when CHAT_PROVIDER or EMBEDDING_PROVIDER=qwen"
+            )
         return self
 
 

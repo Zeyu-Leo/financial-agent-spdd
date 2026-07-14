@@ -65,6 +65,16 @@ def build_http_client(settings: Settings, provider: str) -> LLMHTTPClient:
             settings.openrouter_base_url,
             api_key=settings.openrouter_api_key,
         )
+    if provider == "deepseek":
+        return LLMHTTPClient(
+            settings.deepseek_base_url,
+            api_key=settings.deepseek_api_key,
+        )
+    if provider == "qwen":
+        return LLMHTTPClient(
+            settings.qwen_base_url,
+            api_key=settings.qwen_api_key,
+        )
     if provider == "portkey":
         headers: dict[str, str] = {}
         if settings.portkey_api_key:

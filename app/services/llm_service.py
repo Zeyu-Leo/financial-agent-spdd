@@ -30,7 +30,8 @@ LIVENESS_TIMEOUT_SECONDS = 5.0
 _TRANSIENT_NETWORK_ERRORS = (httpx.TimeoutException, httpx.RequestError)
 # Providers that speak the OpenAI-compatible API (same request/response shape).
 # Portkey is a gateway in front of an upstream provider; OpenRouter is direct.
-_OPENAI_COMPATIBLE = frozenset({"openrouter", "portkey"})
+# DeepSeek and Qwen (DashScope) also expose the same /chat/completions endpoint.
+_OPENAI_COMPATIBLE = frozenset({"openrouter", "portkey", "deepseek", "qwen"})
 
 
 def _elapsed_ms(start: float) -> int:
@@ -56,6 +57,10 @@ class LLMService:
             return self._settings.portkey_model
         if self._settings.chat_provider == "ollama":
             return self._settings.ollama_chat_model
+        if self._settings.chat_provider == "deepseek":
+            return self._settings.deepseek_model
+        if self._settings.chat_provider == "qwen":
+            return self._settings.qwen_model
         return self._settings.openrouter_model
 
     # ------------------------------------------------------------------ #
