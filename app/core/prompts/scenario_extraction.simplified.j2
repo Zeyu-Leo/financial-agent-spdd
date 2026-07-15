@@ -1,0 +1,18 @@
+{# template: scenario_extraction.simplified.j2 #}
+{# variables: user_query, raw_output #}
+The previous attempt to parse your response as JSON failed.
+
+Respond with ONLY a valid JSON object — no markdown fences, no
+explanation, no surrounding text.
+
+Required fields:
+  product_type  : one of credit_card | checking_or_savings | mortgage | debt_collection | other
+  issue_type    : a short slug string (e.g. "overdraft", "late_fee")
+  amount        : a number or null
+  jurisdiction  : a US state code string or null
+  confidence    : a number between 0.0 and 1.0
+
+User question:
+{{ user_query | trim }}
+
+Output JSON only.

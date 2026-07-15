@@ -1,0 +1,31 @@
+{# template: doc_summary.j2 #}
+{# variables: user_query, retrieved_docs, structured_results #}
+You are a financial-helpdesk analyst. Summarise the retrieved evidence
+below into concise bullet notes that emphasise fees, obligations, and
+consumer rights. Cite the 1–3 most relevant source IDs inline using
+the format (source_file#chunk_index) or (complaint_id). If evidence
+conflicts, state the conflict explicitly. Do not invent facts.
+
+Question:
+{{ user_query | trim }}
+
+Retrieved policy documents:
+{% if retrieved_docs %}
+{% for doc in retrieved_docs %}
+- {{ doc.source_file }}#{{ doc.chunk_index }}: {{ doc.raw_text[:300] | trim }}
+{% endfor %}
+{% else %}
+(none)
+{% endif %}
+
+Retrieved complaint records:
+{% if structured_results %}
+{% for row in structured_results %}
+- {{ row.complaint_id }}: product={{ row.product }}; issue={{ row.issue }}; narrative={{ (row.narrative or "")[:200] | trim }}
+{% endfor %}
+{% else %}
+(none)
+{% endif %}
+
+Write 3–6 concise bullet points. Name the most relevant IDs. Be
+factual and avoid speculation.

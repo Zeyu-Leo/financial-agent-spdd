@@ -1,0 +1,28 @@
+{# template: compress_history.j2 #}
+{# variables: older_messages, current_user_query #}
+You are a context summariser. Compress the conversation excerpt below
+into one tight paragraph of plain prose.
+
+Rules:
+- Maximum 6 sentences.
+- Preserve concrete facts: dollar amounts, dates, US state names,
+  account types, company names, complaint IDs.
+- Do not invent any fact not present in the excerpt.
+- Write in third person: "the user asked…", "the assistant explained…".
+- If the excerpt contains no signal worth retaining, write exactly:
+  "No prior context worth retaining."
+
+Conversation excerpt to compress:
+{% if older_messages %}
+{% for msg in older_messages %}
+{{ msg.role }}: {{ msg.content }}
+{% endfor %}
+{% else %}
+(empty)
+{% endif %}
+
+Current user query (for context only — do not answer it):
+{{ current_user_query | trim }}
+
+Write the summary paragraph now. Plain prose only — no bullet points,
+no JSON, no headings.

@@ -1,0 +1,18 @@
+{
+  "user_query": "I was charged a $35 overdraft fee in California. Is this legal?",
+  "retrieved_docs": [
+    {
+      "source_file": "overdraft_faq.txt",
+      "chunk_index": 0,
+      "raw_text": "Banks may charge overdraft fees when a transaction exceeds the available balance. California does not cap the amount but requires clear disclosure under Regulation E."
+    }
+  ],
+  "structured_results": [
+    {
+      "complaint_id": "COMP-001",
+      "product": "Checking or savings account",
+      "issue": "Overdraft fees",
+      "narrative": "I was charged $35 for an overdraft on a $2 transaction. The bank did not warn me."
+    }
+  ]
+}
