@@ -8,11 +8,14 @@ from types import SimpleNamespace
 import pytest
 
 from app.core.exceptions import LLMProviderError
+from app.core.prompt_service import PromptService
 from app.core.state import AgentState, ComplaintRow, DocumentChunk
 from app.tools.retrieve_docs_tool import retrieve_docs_tool
 from app.tools.retrieve_structured_tool import retrieve_structured_tool
 from app.tools.summarise_tool import summarise_tool
 from app.tools.synthesise_answer_tool import synthesise_answer_tool
+
+_PROMPTS = PromptService()
 
 
 class _StubRetrieval:
@@ -97,7 +100,7 @@ async def test_retrieve_structured_tool_returns_partial_state(base_state: AgentS
 
 
 async def test_summarise_tool_uses_llm_when_grounding_exists(base_state: AgentState) -> None:
-    services = SimpleNamespace(llm=_StubLLM("analysis notes"))
+    services = SimpleNamespace(llm=_StubLLM("analysis notes"), prompts=_PROMPTS)
     state: AgentState = {
         **base_state,
         "retrieved_docs": _StubRetrieval().docs,
@@ -114,7 +117,7 @@ async def test_synthesise_tool_returns_fallback_without_grounding(base_state: Ag
 
 
 async def test_summarise_tool_propagates_llm_error(base_state: AgentState) -> None:
-    services = SimpleNamespace(llm=_FailingLLM())
+    services = SimpleNamespace(llm=_FailingLLM(), prompts=_PROMPTS)
     state: AgentState = {
         **base_state,
         "retrieved_docs": _StubRetrieval().docs,
