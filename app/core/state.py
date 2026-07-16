@@ -1,18 +1,16 @@
-"""Agent orchestration state shared by LangGraph nodes (Task 3).
+"""Agent orchestration state shared by LangGraph nodes (Task 3+).
 
 Task 3 re-exports retrieval row models from Task 2 so graph code imports
-state types from one place.
+state types from one place.  Task 4 replaces the placeholder aliases
+with real Pydantic models from ``app/core/safety_policy``.
 """
 
 from __future__ import annotations
 
-from typing import Any, TypeAlias, TypedDict
+from typing import Any, TypedDict
 
+from app.core.safety_policy import SafetyDecision, Scenario
 from app.services.retrieval_service import ComplaintRow, DocumentChunk
-
-# Task 3 placeholder aliases. Concrete models land in Task 4/7.
-Scenario: TypeAlias = Any
-SafetyDecision: TypeAlias = Any
 
 
 class AgentState(TypedDict, total=False):
