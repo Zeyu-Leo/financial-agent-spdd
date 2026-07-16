@@ -26,6 +26,8 @@ from app.core.logging import (
     get_request_id,
     reset_request_id,
 )
+from app.core.prompt_service import PromptService
+from app.core.safety_policy import SafetyPolicy
 from app.core.services_container import ServicesContainer
 from app.services.llm_client import LLMHTTPClient
 from app.services.llm_service import LLMService
@@ -104,9 +106,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     chat_client, embedding_client = build_llm_clients(settings)
     llm_service = LLMService(settings, chat_client, embedding_client)
     engine = make_engine(settings.pg_dsn)
+    prompt_service = PromptService()
     container = ServicesContainer(
         settings=settings,
         llm_service=llm_service,
+        prompts=prompt_service,
+        safety=SafetyPolicy(llm_service, prompt_service),
         retrieval=RetrievalService(
             get_sessionmaker(engine),
             llm_service,

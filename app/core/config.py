@@ -54,6 +54,14 @@ class Settings(BaseSettings):
     embedding_model: str = "nomic-embed-text"
     embedding_dim: int = 768
 
+    # Stage-1 Context Engineering: conversation-history compression.
+    # Short conversations (len <= threshold) pass through unchanged with no
+    # LLM cost. Set to 0 to disable compression entirely.
+    conversation_compression_threshold: int = 5
+    # Number of most-recent messages to keep verbatim; everything older is
+    # summarised into a single system message. Setting to 0 summarises all.
+    conversation_compression_keep_tail: int = 2
+
     @model_validator(mode="after")
     def _require_provider_keys(self) -> "Settings":
         # A provider's keys are required when EITHER axis selects it.
