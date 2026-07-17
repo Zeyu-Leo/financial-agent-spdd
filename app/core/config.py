@@ -84,9 +84,7 @@ class Settings(BaseSettings):
                 "DEEPSEEK_API_KEY required when CHAT_PROVIDER or EMBEDDING_PROVIDER=deepseek"
             )
         if "qwen" in providers and not self.qwen_api_key:
-            raise ValueError(
-                "QWEN_API_KEY required when CHAT_PROVIDER or EMBEDDING_PROVIDER=qwen"
-            )
+            raise ValueError("QWEN_API_KEY required when CHAT_PROVIDER or EMBEDDING_PROVIDER=qwen")
         return self
 
 

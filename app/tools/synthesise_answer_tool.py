@@ -11,9 +11,7 @@ from app.core.services_container import ServicesContainer
 from app.core.state import AgentState
 
 
-async def synthesise_answer_tool(
-    state: AgentState, *, services: ServicesContainer
-) -> AgentState:
+async def synthesise_answer_tool(state: AgentState, *, services: ServicesContainer) -> AgentState:
     request_id = state.get("request_id")
     start = time.perf_counter()
 

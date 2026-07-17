@@ -101,9 +101,7 @@ class RetrievalService:
         query_vec = _vector_literal(vectors[0])
         with self._session_factory() as session:
             rows = (
-                session.execute(
-                    _RETRIEVE_DOCS_SQL, {"query_vec": query_vec, "top_k": top_k}
-                )
+                session.execute(_RETRIEVE_DOCS_SQL, {"query_vec": query_vec, "top_k": top_k})
                 .mappings()
                 .all()
             )

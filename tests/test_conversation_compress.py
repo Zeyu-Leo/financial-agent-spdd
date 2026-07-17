@@ -7,21 +7,17 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.core.config import Settings
-from app.core.conversation_compress import (
-    CompressedHistory,
-    _SUMMARY_PREFIX,
-    compress_history,
-)
+from app.core.conversation_compress import _SUMMARY_PREFIX, compress_history
 from app.core.exceptions import LLMProviderError
 from app.core.prompt_service import PromptService
 
 
 def _settings(**overrides: int) -> Settings:
-    base = dict(
-        pg_dsn="postgresql+psycopg://x:x@localhost/x",
-        conversation_compression_threshold=5,
-        conversation_compression_keep_tail=2,
-    )
+    base = {
+        "pg_dsn": "postgresql+psycopg://x:x@localhost/x",
+        "conversation_compression_threshold": 5,
+        "conversation_compression_keep_tail": 2,
+    }
     base.update(overrides)
     return Settings(**base)  # type: ignore[arg-type]
 
@@ -152,9 +148,7 @@ async def test_negative_keep_tail_raises(prompts: PromptService) -> None:
 @pytest.mark.asyncio
 async def test_llm_provider_error_propagates(prompts: PromptService) -> None:
     llm = AsyncMock()
-    llm.complete = AsyncMock(
-        side_effect=LLMProviderError("ops LLM down", provider="ollama")
-    )
+    llm.complete = AsyncMock(side_effect=LLMProviderError("ops LLM down", provider="ollama"))
     with pytest.raises(LLMProviderError):
         await compress_history(
             _msgs(8),

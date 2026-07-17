@@ -83,7 +83,6 @@ class _RunnerLLMError:
 
 
 @pytest.fixture
-
 def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     monkeypatch.setenv("PG_DSN", "postgresql+psycopg://x")
     monkeypatch.setenv("CHAT_PROVIDER", "ollama")

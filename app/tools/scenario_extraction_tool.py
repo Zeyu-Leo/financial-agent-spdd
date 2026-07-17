@@ -41,9 +41,7 @@ def _parse_scenario(raw: str) -> Scenario | None:
         return None
 
 
-async def scenario_extraction_tool(
-    state: AgentState, *, services: ServicesContainer
-) -> AgentState:
+async def scenario_extraction_tool(state: AgentState, *, services: ServicesContainer) -> AgentState:
     """Extract a ``Scenario`` from ``state["user_query"]``.
 
     Retries once with the simplified prompt on parse failure.
@@ -54,9 +52,7 @@ async def scenario_extraction_tool(
     start = time.perf_counter()
 
     # --- first attempt ---
-    prompt = services.prompts.render(
-        "scenario_extraction.j2", {"user_query": user_query}
-    )
+    prompt = services.prompts.render("scenario_extraction.j2", {"user_query": user_query})
     try:
         raw1 = await services.llm.complete(
             messages=[{"role": "user", "content": prompt}],

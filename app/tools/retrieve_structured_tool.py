@@ -29,9 +29,7 @@ def _guess_keyword(query: str) -> str | None:
     return None
 
 
-async def retrieve_structured_tool(
-    state: AgentState, *, services: ServicesContainer
-) -> AgentState:
+async def retrieve_structured_tool(state: AgentState, *, services: ServicesContainer) -> AgentState:
     request_id = state.get("request_id")
     user_query = state.get("user_query", "")
     start = time.perf_counter()

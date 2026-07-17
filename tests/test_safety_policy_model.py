@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -65,9 +64,7 @@ def test_five_canonical_categories() -> None:
 async def test_stub_always_allows() -> None:
     llm = SimpleNamespace(complete=None)
     policy = SafetyPolicy(llm=llm, prompt_service=PromptService())
-    decision = await policy.evaluate(
-        user_query="What are overdraft fees?", request_id="r1"
-    )
+    decision = await policy.evaluate(user_query="What are overdraft fees?", request_id="r1")
     assert decision.allowed is True
     assert decision.category == "allowed_public_information"
     assert decision.reason == "not yet enforced"

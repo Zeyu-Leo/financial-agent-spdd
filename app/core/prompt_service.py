@@ -69,7 +69,9 @@ class PromptService:
         try:
             tmpl = self._get_template(name)
         except jinja2.TemplateNotFound as err:
-            raise jinja2.TemplateNotFound(name, message=f"Prompt template not found: {name!r}") from err
+            raise jinja2.TemplateNotFound(
+                name, message=f"Prompt template not found: {name!r}"
+            ) from err
         return tmpl.render(**context)
 
     def list_templates(self) -> list[str]:

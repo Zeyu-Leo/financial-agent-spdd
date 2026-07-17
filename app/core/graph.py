@@ -35,7 +35,7 @@ async def history_compression_phase(
     """
     try:
         result = await compress_history(
-            state.get("conversation_history") or [],
+            state.get("conversation_history") or [],    
             current_user_query=state.get("user_query", ""),
             llm=services.llm,
             prompts=services.prompts,
@@ -68,10 +68,13 @@ def ingest_input(state: AgentState) -> AgentState:
 
 async def retrieve_phase(state: AgentState, *, services: ServicesContainer) -> AgentState:
     request_id = state.get("request_id")
-    doc_result, structured_result = await asyncio.gather(
+    gathered = await asyncio.gather(
         retrieve_docs_tool(state, services=services),
         retrieve_structured_tool(state, services=services),
         return_exceptions=True,
+    )
+    doc_result, structured_result = cast(
+        tuple[AgentState | Exception, AgentState | Exception], gathered
     )
 
     out: AgentState = {}

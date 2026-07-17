@@ -19,7 +19,9 @@ class _StubRetrieval:
         self._docs = docs
         self._rows = rows
 
-    async def retrieve_docs(self, query: str, *, top_k: int, request_id: str | None) -> list[DocumentChunk]:
+    async def retrieve_docs(
+        self, query: str, *, top_k: int, request_id: str | None
+    ) -> list[DocumentChunk]:
         return self._docs[:top_k]
 
     async def retrieve_complaints(
@@ -39,10 +41,14 @@ _SCENARIO_STUB = '{"product_type":"checking_or_savings","issue_type":"overdraft"
 
 class _StubLLM:
     def __init__(self) -> None:
-        self._analysis = (FIXTURE_DIR / "llm_responses" / "analysis_notes_ok.txt").read_text().strip()
+        self._analysis = (
+            (FIXTURE_DIR / "llm_responses" / "analysis_notes_ok.txt").read_text().strip()
+        )
         self._answer = (FIXTURE_DIR / "llm_responses" / "final_answer_ok.txt").read_text().strip()
 
-    async def complete(self, messages: list[dict[str, str]], *, request_id: str | None = None, **kwargs: object) -> str:
+    async def complete(
+        self, messages: list[dict[str, str]], *, request_id: str | None = None, **kwargs: object
+    ) -> str:
         prompt = messages[-1]["content"].lower()
         # scenario extraction prompt contains the schema keyword
         if "product_type" in prompt and "issue_type" in prompt:

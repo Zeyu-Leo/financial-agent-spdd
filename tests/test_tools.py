@@ -47,7 +47,9 @@ class _StubRetrieval:
             )
         ]
 
-    async def retrieve_docs(self, query: str, *, top_k: int, request_id: str | None) -> list[DocumentChunk]:
+    async def retrieve_docs(
+        self, query: str, *, top_k: int, request_id: str | None
+    ) -> list[DocumentChunk]:
         return self.docs[:top_k]
 
     async def retrieve_complaints(
@@ -66,17 +68,20 @@ class _StubLLM:
     def __init__(self, text: str = "ok") -> None:
         self._text = text
 
-    async def complete(self, messages: list[dict[str, str]], *, request_id: str | None = None) -> str:
+    async def complete(
+        self, messages: list[dict[str, str]], *, request_id: str | None = None
+    ) -> str:
         return self._text
 
 
 class _FailingLLM:
-    async def complete(self, messages: list[dict[str, str]], *, request_id: str | None = None) -> str:
+    async def complete(
+        self, messages: list[dict[str, str]], *, request_id: str | None = None
+    ) -> str:
         raise LLMProviderError("boom", provider="ollama", request_id=request_id)
 
 
 @pytest.fixture
-
 def base_state() -> AgentState:
     return {
         "request_id": "req-1",

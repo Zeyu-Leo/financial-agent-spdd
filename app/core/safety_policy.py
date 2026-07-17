@@ -44,14 +44,9 @@ class Scenario(BaseModel):
     """
 
     product_type: str = Field(
-        description=(
-            "One of: credit_card, checking_or_savings, mortgage, "
-            "debt_collection, other"
-        )
+        description=("One of: credit_card, checking_or_savings, mortgage, debt_collection, other")
     )
-    issue_type: str = Field(
-        description="Short slug, e.g. 'overdraft', 'late_fee', 'escrow'."
-    )
+    issue_type: str = Field(description="Short slug, e.g. 'overdraft', 'late_fee', 'escrow'.")
     amount: float | None = Field(
         default=None,
         description="Dollar amount mentioned in the query, or null.",

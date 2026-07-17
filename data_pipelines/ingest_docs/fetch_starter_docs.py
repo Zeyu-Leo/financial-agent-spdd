@@ -151,12 +151,12 @@ def _output_dir() -> Path:
 # Match the page's <main class="ask-cfpb-page--answer ...">..</main> wrapper.
 # Two patterns because the class list ordering is not contractual.
 _MAIN_RE = re.compile(
-    r'<main\b[^>]*\bask-cfpb-page--answer\b[^>]*>(?P<inner>.*?)</main>',
+    r"<main\b[^>]*\bask-cfpb-page--answer\b[^>]*>(?P<inner>.*?)</main>",
     re.DOTALL,
 )
-_H1_RE = re.compile(r'<h1\b[^>]*>(?P<text>.*?)</h1>', re.DOTALL)
+_H1_RE = re.compile(r"<h1\b[^>]*>(?P<text>.*?)</h1>", re.DOTALL)
 _LAST_REVIEWED_RE = re.compile(
-    r'last\s*reviewed:\s*([A-Z]{3,9}\s+\d{1,2},?\s*\d{4})',
+    r"last\s*reviewed:\s*([A-Z]{3,9}\s+\d{1,2},?\s*\d{4})",
     re.IGNORECASE,
 )
 # CFPB's footer always begins with this exact H2 (the apostrophe is a
@@ -171,28 +171,28 @@ _FOOTER_RE = re.compile(
 # inside <aside class="o-tip"> "Tip" callouts that are real consumer
 # guidance, not chrome.
 _DROP_TAGS_RE = re.compile(
-    r'<(script|style)\b[^>]*>.*?</\1>',
+    r"<(script|style)\b[^>]*>.*?</\1>",
     re.DOTALL | re.IGNORECASE,
 )
-_TAG_RE = re.compile(r'<[^>]+>')
+_TAG_RE = re.compile(r"<[^>]+>")
 _LANGUAGE_SWITCHER_RE = re.compile(
-    r'^\s*English\s*\n\s*Espa[nñ]ol\s*\n+',
+    r"^\s*English\s*\n\s*Espa[nñ]ol\s*\n+",
     re.IGNORECASE,
 )
 
 
 def _strip_tags(html_fragment: str) -> str:
-    text = _DROP_TAGS_RE.sub('', html_fragment)
-    text = _TAG_RE.sub('', text)
+    text = _DROP_TAGS_RE.sub("", html_fragment)
+    text = _TAG_RE.sub("", text)
     text = html.unescape(text)
     return text
 
 
 def _normalise_whitespace(text: str) -> str:
     # Collapse runs of spaces/tabs but preserve paragraph breaks.
-    text = re.sub(r'[ \t]+', ' ', text)
-    text = re.sub(r'\s*\n\s*', '\n', text)
-    text = re.sub(r'\n{3,}', '\n\n', text)
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\s*\n\s*", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
 
 
@@ -222,9 +222,9 @@ def _extract(section_title: str, source_url: str, html_text: str) -> FetchedSect
             "missing. The page template may have changed."
         )
 
-    body_html = main_inner[h1_match.end(): footer_match.start()]
+    body_html = main_inner[h1_match.end() : footer_match.start()]
     body_text = _normalise_whitespace(_strip_tags(body_html))
-    body_text = _LANGUAGE_SWITCHER_RE.sub('', body_text)
+    body_text = _LANGUAGE_SWITCHER_RE.sub("", body_text)
     body_text = body_text.strip()
 
     if len(body_text) < MIN_BODY_CHARS:
@@ -307,8 +307,7 @@ def write_files(grouped: dict[str, list[FetchedSection]], output_dir: Path) -> d
     for file_name, sections in grouped.items():
         if not sections:
             raise RuntimeError(
-                f"No sections were collected for {file_name}; refusing "
-                "to write an empty file."
+                f"No sections were collected for {file_name}; refusing to write an empty file."
             )
         target = output_dir / file_name
         target.write_text(_format_file(file_name, sections), encoding="utf-8")

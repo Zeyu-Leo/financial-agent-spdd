@@ -71,16 +71,14 @@ def test_list_templates_includes_all_expected(svc: PromptService) -> None:
         "safety_classification.j2",
         "compress_history.j2",
     }
-    assert expected.issubset(set(templates)), (
-        f"Missing templates: {expected - set(templates)}"
-    )
+    assert expected.issubset(set(templates)), f"Missing templates: {expected - set(templates)}"
 
 
 def test_structured_prompts_end_with_output_json_only(svc: PromptService) -> None:
     """Norm: every structured-output prompt ends with 'Output JSON only.'"""
     for tmpl_name in ("scenario_extraction.j2", "safety_classification.j2"):
-        ctx = json.loads((_EXAMPLES_DIR / f"{tmpl_name.replace('.j2', '')}.example.json").read_text())
-        rendered = svc.render(tmpl_name, ctx)
-        assert "Output JSON only." in rendered, (
-            f"{tmpl_name} does not contain 'Output JSON only.'"
+        ctx = json.loads(
+            (_EXAMPLES_DIR / f"{tmpl_name.replace('.j2', '')}.example.json").read_text()
         )
+        rendered = svc.render(tmpl_name, ctx)
+        assert "Output JSON only." in rendered, f"{tmpl_name} does not contain 'Output JSON only.'"
