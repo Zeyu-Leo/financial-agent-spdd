@@ -18,6 +18,7 @@ class _StubRetrieval:
     def __init__(self, docs: list[DocumentChunk], rows: list[ComplaintRow]) -> None:
         self._docs = docs
         self._rows = rows
+        self.complaint_calls: list[dict[str, str | int | None]] = []
 
     async def retrieve_docs(
         self, query: str, *, top_k: int, request_id: str | None
@@ -33,6 +34,15 @@ class _StubRetrieval:
         narrative_keyword: str | None,
         request_id: str | None,
     ) -> list[ComplaintRow]:
+        self.complaint_calls.append(
+            {
+                "query": query,
+                "top_k": top_k,
+                "product": product,
+                "narrative_keyword": narrative_keyword,
+                "request_id": request_id,
+            }
+        )
         return self._rows[:top_k]
 
 
@@ -120,3 +130,28 @@ async def test_graph_empty_retrieval_still_returns_answer() -> None:
     assert out["final_answer"]
     assert "grounding" in (out["final_answer"] or "").lower()
     assert out.get("error") is None
+
+
+async def test_graph_extracts_scenario_before_structured_retrieval() -> None:
+    retrieval = _StubRetrieval(_load_docs(), _load_rows())
+    services = SimpleNamespace(
+        retrieval=retrieval,
+        llm=_StubLLM(),
+        prompts=_PROMPTS,
+        settings=SimpleNamespace(
+            conversation_compression_threshold=5,
+            conversation_compression_keep_tail=2,
+            chat_provider="ollama",
+            ollama_ops_model="qwen3.5:4b",
+        ),
+    )
+    runner = build_agent(services)
+
+    await runner.run(
+        user_query="Please help me understand this charge",
+        session_id=None,
+        request_id="req-graph-scenario-first",
+    )
+
+    assert retrieval.complaint_calls[-1]["product"] == "Checking or savings account"
+    assert retrieval.complaint_calls[-1]["narrative_keyword"] == "overdraft"

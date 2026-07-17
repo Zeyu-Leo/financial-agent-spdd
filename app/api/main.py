@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.config import Settings, get_settings
 from app.core.db import get_sessionmaker, make_engine
-from app.core.exceptions import LLMProviderError
+from app.core.exceptions import LLMOutputValidationError, LLMProviderError
 from app.core.graph import build_agent
 from app.core.logging import (
     bind_request_id,
@@ -208,6 +208,15 @@ async def agent_query(payload: AgentQueryRequest, debug: bool = False) -> Respon
             status_code=502,
             content={
                 "error_code": "llm_provider_error",
+                "message": str(exc),
+                "request_id": request_id,
+            },
+        )
+    except LLMOutputValidationError as exc:
+        return JSONResponse(
+            status_code=502,
+            content={
+                "error_code": "scenario_parse_failed",
                 "message": str(exc),
                 "request_id": request_id,
             },

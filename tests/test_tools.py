@@ -9,7 +9,7 @@ import pytest
 
 from app.core.exceptions import LLMProviderError
 from app.core.prompt_service import PromptService
-from app.core.state import AgentState, ComplaintRow, DocumentChunk
+from app.core.state import AgentState, ComplaintRow, DocumentChunk, Scenario
 from app.tools.retrieve_docs_tool import retrieve_docs_tool
 from app.tools.retrieve_structured_tool import retrieve_structured_tool
 from app.tools.summarise_tool import summarise_tool
@@ -20,6 +20,7 @@ _PROMPTS = PromptService()
 
 class _StubRetrieval:
     def __init__(self) -> None:
+        self.complaint_calls: list[dict[str, str | int | None]] = []
         self.docs = [
             DocumentChunk(
                 chunk_id=1,
@@ -61,6 +62,15 @@ class _StubRetrieval:
         narrative_keyword: str | None,
         request_id: str | None,
     ) -> list[ComplaintRow]:
+        self.complaint_calls.append(
+            {
+                "query": query,
+                "top_k": top_k,
+                "product": product,
+                "narrative_keyword": narrative_keyword,
+                "request_id": request_id,
+            }
+        )
         return self.rows[:top_k]
 
 
@@ -98,10 +108,29 @@ async def test_retrieve_docs_tool_returns_partial_state(base_state: AgentState) 
 
 
 async def test_retrieve_structured_tool_returns_partial_state(base_state: AgentState) -> None:
-    services = SimpleNamespace(retrieval=_StubRetrieval())
+    retrieval = _StubRetrieval()
+    services = SimpleNamespace(retrieval=retrieval)
     out = await retrieve_structured_tool(base_state, services=services)
     assert "structured_results" in out
     assert out["structured_results"][0].complaint_id == "CFPB-1"
+
+
+async def test_retrieve_structured_tool_uses_scenario_filters(base_state: AgentState) -> None:
+    retrieval = _StubRetrieval()
+    services = SimpleNamespace(retrieval=retrieval)
+    state: AgentState = {
+        **base_state,
+        "scenario": Scenario(
+            product_type="checking_or_savings",
+            issue_type="overdraft_fee",
+            amount=None,
+            jurisdiction="CA",
+            confidence=0.9,
+        ),
+    }
+    await retrieve_structured_tool(state, services=services)
+    assert retrieval.complaint_calls[-1]["product"] == "Checking or savings account"
+    assert retrieval.complaint_calls[-1]["narrative_keyword"] == "overdraft fee"
 
 
 async def test_summarise_tool_uses_llm_when_grounding_exists(base_state: AgentState) -> None:

@@ -82,6 +82,20 @@ class _RunnerLLMError:
         raise LLMProviderError("provider down", provider="ollama", request_id=request_id)
 
 
+class _RunnerScenarioParseError:
+    async def run(
+        self,
+        *,
+        user_query: str,
+        session_id: str | None,
+        conversation_history: list[dict],
+        request_id: str | None = None,
+    ) -> dict:
+        from app.core.exceptions import LLMOutputValidationError
+
+        raise LLMOutputValidationError("invalid scenario", raw_output="not json", request_id=request_id)
+
+
 @pytest.fixture
 def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     monkeypatch.setenv("PG_DSN", "postgresql+psycopg://x")
@@ -125,3 +139,10 @@ def test_agent_query_llm_error_path(client: TestClient) -> None:
     body = resp.json()
     assert body["error_code"] == "llm_provider_error"
     assert body["request_id"]
+
+
+def test_agent_query_scenario_parse_error_path(client: TestClient) -> None:
+    client.app.state.container.runner = _RunnerScenarioParseError()
+    resp = client.post("/agent/query", json={"question": "overdraft fee"})
+    assert resp.status_code == 502
+    assert resp.json()["error_code"] == "scenario_parse_failed"

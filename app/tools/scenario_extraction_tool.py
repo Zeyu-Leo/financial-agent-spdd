@@ -58,6 +58,8 @@ async def scenario_extraction_tool(state: AgentState, *, services: ServicesConta
             messages=[{"role": "user", "content": prompt}],
             temperature=0.0,
             max_tokens=400,
+            json_schema=Scenario.model_json_schema(),
+            json_schema_name="scenario",
             request_id=request_id,
         )
     except LLMProviderError:
@@ -100,6 +102,8 @@ async def scenario_extraction_tool(state: AgentState, *, services: ServicesConta
             messages=[{"role": "user", "content": simplified_prompt}],
             temperature=0.0,
             max_tokens=400,
+            json_schema=Scenario.model_json_schema(),
+            json_schema_name="scenario",
             request_id=request_id,
         )
     except LLMProviderError:

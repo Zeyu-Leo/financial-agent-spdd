@@ -35,7 +35,7 @@ async def history_compression_phase(
     """
     try:
         result = await compress_history(
-            state.get("conversation_history") or [],    
+            state.get("conversation_history") or [],
             current_user_query=state.get("user_query", ""),
             llm=services.llm,
             prompts=services.prompts,
@@ -112,20 +112,17 @@ async def retrieve_phase(state: AgentState, *, services: ServicesContainer) -> A
     return out
 
 
+async def scenario_phase(state: AgentState, *, services: ServicesContainer) -> AgentState:
+    """Extract intent before retrieval so Scenario can drive complaint filters."""
+    if state.get("error"):
+        return {}
+    return await scenario_extraction_tool(state, services=services)
+
+
 async def analysis_phase(state: AgentState, *, services: ServicesContainer) -> AgentState:
     if state.get("error"):
         return {}
-    # Step 1: extract structured intent before summarising
-    try:
-        scenario_update = await scenario_extraction_tool(state, services=services)
-        state = {**state, **scenario_update}
-    except LLMProviderError:
-        raise
-    # Step 2: summarise retrieved evidence
-    try:
-        return await summarise_tool(state, services=services)
-    except LLMProviderError:
-        raise
+    return await summarise_tool(state, services=services)
 
 
 async def synthesis_phase(state: AgentState, *, services: ServicesContainer) -> AgentState:
@@ -175,13 +172,15 @@ def build_agent(services: ServicesContainer) -> AgentRunner:
         "history_compression_phase",
         partial(history_compression_phase, services=services),
     )
+    graph.add_node("scenario_phase", partial(scenario_phase, services=services))
     graph.add_node("retrieve_phase", partial(retrieve_phase, services=services))
     graph.add_node("analysis_phase", partial(analysis_phase, services=services))
     graph.add_node("synthesis_phase", partial(synthesis_phase, services=services))
 
     graph.add_edge(START, "ingest_input")
     graph.add_edge("ingest_input", "history_compression_phase")
-    graph.add_edge("history_compression_phase", "retrieve_phase")
+    graph.add_edge("history_compression_phase", "scenario_phase")
+    graph.add_edge("scenario_phase", "retrieve_phase")
     graph.add_conditional_edges(
         "retrieve_phase",
         _route_after_retrieve,

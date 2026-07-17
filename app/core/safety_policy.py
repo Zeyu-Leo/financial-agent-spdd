@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 if TYPE_CHECKING:
     from app.core.prompt_service import PromptService
@@ -32,6 +32,22 @@ SAFETY_CATEGORIES: tuple[str, ...] = (
     "unsupported_guarantees",
 )
 
+_US_STATE_CODES = {
+    "alabama": "AL", "alaska": "AK", "arizona": "AZ", "arkansas": "AR",
+    "california": "CA", "colorado": "CO", "connecticut": "CT", "delaware": "DE",
+    "district of columbia": "DC", "florida": "FL", "georgia": "GA", "hawaii": "HI",
+    "idaho": "ID", "illinois": "IL", "indiana": "IN", "iowa": "IA", "kansas": "KS",
+    "kentucky": "KY", "louisiana": "LA", "maine": "ME", "maryland": "MD",
+    "massachusetts": "MA", "michigan": "MI", "minnesota": "MN", "mississippi": "MS",
+    "missouri": "MO", "montana": "MT", "nebraska": "NE", "nevada": "NV",
+    "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM", "new york": "NY",
+    "north carolina": "NC", "north dakota": "ND", "ohio": "OH", "oklahoma": "OK",
+    "oregon": "OR", "pennsylvania": "PA", "rhode island": "RI", "south carolina": "SC",
+    "south dakota": "SD", "tennessee": "TN", "texas": "TX", "utah": "UT",
+    "vermont": "VT", "virginia": "VA", "washington": "WA", "west virginia": "WV",
+    "wisconsin": "WI", "wyoming": "WY",
+}
+
 
 # ---------------------------------------------------------------------------
 # Scenario — structured intent extracted from the user query
@@ -43,23 +59,39 @@ class Scenario(BaseModel):
     synthesis prompt; they are never shown verbatim to the user.
     """
 
-    product_type: str = Field(
-        description=("One of: credit_card, checking_or_savings, mortgage, debt_collection, other")
+    model_config = ConfigDict(extra="forbid")
+
+    product_type: Literal[
+        "credit_card", "checking_or_savings", "mortgage", "debt_collection", "other"
+    ] = Field(description="Financial product inferred from the user query.")
+    issue_type: str = Field(
+        pattern=r"^[a-z][a-z0-9_]{0,63}$",
+        description="Short lowercase slug, e.g. 'overdraft', 'late_fee', 'escrow'.",
     )
-    issue_type: str = Field(description="Short slug, e.g. 'overdraft', 'late_fee', 'escrow'.")
     amount: float | None = Field(
         default=None,
+        ge=0,
         description="Dollar amount mentioned in the query, or null.",
     )
     jurisdiction: str | None = Field(
         default=None,
-        description="US state code or full name if mentioned, else null.",
+        pattern=r"^[A-Z]{2}$",
+        description="Two-letter US state code if mentioned, else null.",
     )
     confidence: float = Field(
         ge=0.0,
         le=1.0,
         description="Extraction confidence between 0.0 and 1.0.",
     )
+
+    @field_validator("jurisdiction", mode="before")
+    @classmethod
+    def normalise_jurisdiction(cls, value: object) -> object:
+        """Accept a state name from legacy/provider output and store its code."""
+        if not isinstance(value, str):
+            return value
+        stripped = value.strip()
+        return _US_STATE_CODES.get(stripped.lower(), stripped.upper())
 
 
 # ---------------------------------------------------------------------------

@@ -42,6 +42,8 @@ async def test_happy_path_returns_scenario() -> None:
     assert scenario.jurisdiction == "CA"
     assert 0.0 <= scenario.confidence <= 1.0
     svc.llm.complete.assert_called_once()
+    assert svc.llm.complete.call_args.kwargs["json_schema"] == Scenario.model_json_schema()
+    assert svc.llm.complete.call_args.kwargs["json_schema_name"] == "scenario"
 
 
 @pytest.mark.asyncio

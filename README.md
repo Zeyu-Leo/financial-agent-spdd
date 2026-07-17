@@ -146,18 +146,24 @@ Graph topology (current baseline):
 START
   -> ingest_input
   -> history_compression_phase
+  -> scenario_phase
   -> retrieve_phase
   -> analysis_phase
   -> synthesis_phase
   -> END
 ```
 
-`retrieve_phase` runs document and structured complaint retrieval in parallel.
-`analysis_phase` extracts a validated `Scenario` with one bounded retry, then
-creates grounded analysis notes. Prompt text is versioned under
+`scenario_phase` extracts and validates intent with one bounded retry before
+retrieval. `retrieve_phase` then runs document and Scenario-filtered structured
+complaint retrieval in parallel. `analysis_phase` creates grounded analysis
+notes. Prompt text is versioned under
 `app/core/prompts/` and rendered through `PromptService` with Jinja
-`StrictUndefined`. Safety models are defined, but runtime safety enforcement is
-intentionally reserved for the later safety task.
+`StrictUndefined`. Structured extractions are constrained with the Pydantic
+JSON Schema at the provider boundary (`format` for Ollama, strict
+`response_format=json_schema` for compatible OpenAI-style providers) and
+validated again locally. Qwen falls back to provider JSON mode plus the same
+local Pydantic validation. Safety models are defined, but runtime safety
+enforcement is intentionally reserved for the later safety task.
 
 Quick endpoint example:
 

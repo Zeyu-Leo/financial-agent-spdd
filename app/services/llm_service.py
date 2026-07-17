@@ -74,8 +74,20 @@ class LLMService:
         temperature: float = 0.0,
         max_tokens: int | None = None,
         response_format: str | None = None,
+        json_schema: dict[str, Any] | None = None,
+        json_schema_name: str | None = None,
         request_id: str | None = None,
     ) -> str:
+        """Generate one completion, optionally constrained by JSON output settings.
+
+        ``json_schema`` is provider-enforced structured output: Ollama receives
+        it via ``format`` and compatible OpenAI-style providers receive a strict
+        ``response_format=json_schema`` object. Qwen falls back to its documented
+        ``json_object`` mode, then relies on local Pydantic validation. The
+        caller must always validate the returned text with its Pydantic model.
+        """
+        if json_schema is not None and response_format is not None:
+            raise ValueError("json_schema and response_format are mutually exclusive")
         provider = self._settings.chat_provider
         rid = request_id or get_request_id()
         if provider in _OPENAI_COMPATIBLE:
@@ -87,7 +99,20 @@ class LLMService:
             }
             if max_tokens is not None:
                 payload["max_tokens"] = max_tokens
-            if response_format is not None:
+            if json_schema is not None and provider == "qwen":
+                # DashScope's documented compatibility mode guarantees a JSON
+                # object, but does not document strict JSON Schema enforcement.
+                payload["response_format"] = {"type": "json_object"}
+            elif json_schema is not None:
+                payload["response_format"] = {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": json_schema_name or "structured_response",
+                        "schema": json_schema,
+                        "strict": True,
+                    },
+                }
+            elif response_format is not None:
                 payload["response_format"] = {"type": response_format}
         else:
             url = "/api/chat"
@@ -99,6 +124,12 @@ class LLMService:
             }
             if max_tokens is not None:
                 payload["options"]["num_predict"] = max_tokens
+            if json_schema is not None:
+                payload["format"] = json_schema
+            elif response_format is not None:
+                # Ollama calls its JSON mode ``format: json`` rather than the
+                # OpenAI-compatible ``response_format: {type: json_object}``.
+                payload["format"] = "json"
 
         prompt_preview, truncated = truncate_prompt(str(messages))
         start = time.perf_counter()

@@ -9,11 +9,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.core.prompt_service import PromptService
-from app.core.safety_policy import (
-    SAFETY_CATEGORIES,
-    SafetyDecision,
-    SafetyPolicy,
-)
+from app.core.safety_policy import SAFETY_CATEGORIES, SafetyDecision, SafetyPolicy, Scenario
 
 _FIXTURES = Path(__file__).parent / "fixtures" / "llm_responses"
 
@@ -55,6 +51,30 @@ def test_unknown_category_rejected() -> None:
 
 def test_five_canonical_categories() -> None:
     assert len(SAFETY_CATEGORIES) == 5
+
+
+def test_scenario_normalises_full_state_name() -> None:
+    scenario = Scenario(
+        product_type="checking_or_savings",
+        issue_type="overdraft",
+        jurisdiction="California",
+        confidence=0.8,
+    )
+    assert scenario.jurisdiction == "CA"
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"product_type": "bank_account", "issue_type": "fee", "confidence": 0.5},
+        {"product_type": "credit_card", "issue_type": "late fee", "confidence": 0.5},
+        {"product_type": "mortgage", "issue_type": "escrow", "jurisdiction": "Calif.", "confidence": 0.5},
+        {"product_type": "other", "issue_type": "fee", "confidence": 0.5, "unexpected": True},
+    ],
+)
+def test_scenario_rejects_invalid_schema_values(payload: dict[str, object]) -> None:
+    with pytest.raises(ValidationError):
+        Scenario.model_validate(payload)
 
 
 # ---------------------------------------------------------------------------
