@@ -63,10 +63,7 @@ from typing import Any
 
 import httpx
 
-CFPB_SEARCH_URL = (
-    "https://www.consumerfinance.gov/data-research/consumer-complaints/"
-    "search/api/v1/"
-)
+CFPB_SEARCH_URL = "https://www.consumerfinance.gov/data-research/consumer-complaints/search/api/v1/"
 
 # Page size for each API call. The API caps page size, and small pages keep
 # the response time predictable. 100 is a good compromise between throughput
@@ -179,8 +176,7 @@ class CFPBClient:
             hits = hits_block.get("hits")
             if not isinstance(hits, list):
                 raise RuntimeError(
-                    "CFPB response 'hits.hits' is not a list; "
-                    "payload shape changed."
+                    "CFPB response 'hits.hits' is not a list; payload shape changed."
                 )
             if not hits:
                 # Server says there are no more matching rows. We stop here
@@ -191,10 +187,7 @@ class CFPBClient:
             for hit in hits:
                 source = hit.get("_source") if isinstance(hit, dict) else None
                 if not isinstance(source, dict):
-                    raise RuntimeError(
-                        "CFPB hit missing '_source' object; payload shape "
-                        "changed."
-                    )
+                    raise RuntimeError("CFPB hit missing '_source' object; payload shape changed.")
                 yield source
                 yielded += 1
                 if yielded >= plan.target_rows:
@@ -301,9 +294,7 @@ def print_summary(rows: list[dict[str, Any]], path: Path) -> None:
         product = row.get("product") or "<missing>"
         by_product[product] = by_product.get(product, 0) + 1
 
-    dates = sorted(
-        d for d in (row.get("date_received") for row in rows) if isinstance(d, str)
-    )
+    dates = sorted(d for d in (row.get("date_received") for row in rows) if isinstance(d, str))
     size_kb = path.stat().st_size / 1024 if path.exists() else 0.0
 
     print()

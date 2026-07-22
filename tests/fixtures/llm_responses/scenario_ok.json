@@ -1,0 +1,7 @@
+{
+  "product_type": "checking_or_savings",
+  "issue_type": "overdraft",
+  "amount": 35.0,
+  "jurisdiction": "CA",
+  "confidence": 0.95
+}

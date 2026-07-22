@@ -30,7 +30,9 @@ from app.services.retrieval_service import ComplaintRow, DocumentChunk, Retrieva
 
 pytestmark = pytest.mark.network
 
-_SCHEMA_SQL = Path(__file__).resolve().parents[1] / "data_pipelines" / "schema" / "0001_create_tables.sql"
+_SCHEMA_SQL = (
+    Path(__file__).resolve().parents[1] / "data_pipelines" / "schema" / "0001_create_tables.sql"
+)
 _TEST_DIM = 3
 
 
@@ -80,7 +82,9 @@ def seeded_service() -> RetrievalService:
                 "('C', '2024-03-01', 'Mortgage', 'escrow issue')"
             )
         )
-    return RetrievalService(get_sessionmaker(engine), _StubLLM([1.0, 0.0, 0.0]), embedding_dim=_TEST_DIM)
+    return RetrievalService(
+        get_sessionmaker(engine), _StubLLM([1.0, 0.0, 0.0]), embedding_dim=_TEST_DIM
+    )
 
 
 async def test_retrieve_docs_returns_at_most_top_k_cosine_ascending(

@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from app.core.config import Settings
+from app.core.prompt_service import PromptService
+from app.core.safety_policy import SafetyPolicy
 from app.services.llm_service import LLMService
 from app.services.retrieval_service import RetrievalService
 
@@ -22,6 +24,8 @@ class ServicesContainer:
     settings: Settings
     llm_service: LLMService
     retrieval: RetrievalService
+    prompts: PromptService
+    safety: SafetyPolicy
     runner: AgentRunner | None = None
 
     @property

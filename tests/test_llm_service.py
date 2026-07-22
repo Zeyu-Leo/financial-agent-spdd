@@ -40,12 +40,14 @@ def _service(provider: str, handler: httpx.MockTransport, *, embedding_dim: int 
         openrouter_api_key="sk-test" if provider == "openrouter" else None,
         portkey_api_key="pk-test" if provider == "portkey" else None,
         portkey_provider="openai" if provider == "portkey" else None,
+        qwen_api_key="qwen-test" if provider == "qwen" else None,
         embedding_dim=embedding_dim,
     )
     base = {
         "openrouter": settings.openrouter_base_url,
         "portkey": settings.portkey_base_url,
         "ollama": settings.ollama_base_url,
+        "qwen": settings.qwen_base_url,
     }[provider]
     extra_headers = None
     if provider == "portkey":
@@ -84,6 +86,58 @@ async def test_ollama_complete_endpoint_and_unwrap() -> None:
     out = await svc.complete(messages=[{"role": "user", "content": "hi"}])
     assert out == "local answer"
     assert seen["url"] == "http://localhost:11434/api/chat"
+
+
+async def test_ollama_complete_sends_json_schema_as_format() -> None:
+    seen: dict[str, Any] = {}
+    schema = {"type": "object", "properties": {"kind": {"type": "string"}}}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["payload"] = json.loads(request.content)
+        return httpx.Response(200, json={"message": {"content": '{"kind":"ok"}'}})
+
+    svc = _service("ollama", httpx.MockTransport(handler))
+    await svc.complete(
+        messages=[{"role": "user", "content": "hi"}],
+        json_schema=schema,
+        json_schema_name="example",
+    )
+    assert seen["payload"]["format"] == schema
+
+
+async def test_openrouter_complete_sends_strict_json_schema() -> None:
+    seen: dict[str, Any] = {}
+    schema = {"type": "object", "properties": {"kind": {"type": "string"}}}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["payload"] = json.loads(request.content)
+        return httpx.Response(200, json={"choices": [{"message": {"content": '{"kind":"ok"}'}}]})
+
+    svc = _service("openrouter", httpx.MockTransport(handler))
+    await svc.complete(
+        messages=[{"role": "user", "content": "hi"}],
+        json_schema=schema,
+        json_schema_name="example",
+    )
+    assert seen["payload"]["response_format"] == {
+        "type": "json_schema",
+        "json_schema": {"name": "example", "schema": schema, "strict": True},
+    }
+
+
+async def test_qwen_complete_falls_back_to_json_object() -> None:
+    seen: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["payload"] = json.loads(request.content)
+        return httpx.Response(200, json={"choices": [{"message": {"content": '{"kind":"ok"}'}}]})
+
+    svc = _service("qwen", httpx.MockTransport(handler))
+    await svc.complete(
+        messages=[{"role": "user", "content": "hi"}],
+        json_schema={"type": "object"},
+    )
+    assert seen["payload"]["response_format"] == {"type": "json_object"}
 
 
 # --------------------------------------------------------------------- #

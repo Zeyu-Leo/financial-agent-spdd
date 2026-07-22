@@ -7,17 +7,22 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from app.core.graph import build_agent
+from app.core.prompt_service import PromptService
 from app.core.state import ComplaintRow, DocumentChunk
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures"
+_PROMPTS = PromptService()
 
 
 class _StubRetrieval:
     def __init__(self, docs: list[DocumentChunk], rows: list[ComplaintRow]) -> None:
         self._docs = docs
         self._rows = rows
+        self.complaint_calls: list[dict[str, str | int | None]] = []
 
-    async def retrieve_docs(self, query: str, *, top_k: int, request_id: str | None) -> list[DocumentChunk]:
+    async def retrieve_docs(
+        self, query: str, *, top_k: int, request_id: str | None
+    ) -> list[DocumentChunk]:
         return self._docs[:top_k]
 
     async def retrieve_complaints(
@@ -29,16 +34,35 @@ class _StubRetrieval:
         narrative_keyword: str | None,
         request_id: str | None,
     ) -> list[ComplaintRow]:
+        self.complaint_calls.append(
+            {
+                "query": query,
+                "top_k": top_k,
+                "product": product,
+                "narrative_keyword": narrative_keyword,
+                "request_id": request_id,
+            }
+        )
         return self._rows[:top_k]
+
+
+_SCENARIO_STUB = '{"product_type":"checking_or_savings","issue_type":"overdraft","amount":null,"jurisdiction":null,"confidence":0.8}'
 
 
 class _StubLLM:
     def __init__(self) -> None:
-        self._analysis = (FIXTURE_DIR / "llm_responses" / "analysis_notes_ok.txt").read_text().strip()
+        self._analysis = (
+            (FIXTURE_DIR / "llm_responses" / "analysis_notes_ok.txt").read_text().strip()
+        )
         self._answer = (FIXTURE_DIR / "llm_responses" / "final_answer_ok.txt").read_text().strip()
 
-    async def complete(self, messages: list[dict[str, str]], *, request_id: str | None = None) -> str:
+    async def complete(
+        self, messages: list[dict[str, str]], *, request_id: str | None = None, **kwargs: object
+    ) -> str:
         prompt = messages[-1]["content"].lower()
+        # scenario extraction prompt contains the schema keyword
+        if "product_type" in prompt and "issue_type" in prompt:
+            return _SCENARIO_STUB
         if "analysis_notes" in prompt:
             return self._answer
         return self._analysis
@@ -55,7 +79,17 @@ def _load_rows() -> list[ComplaintRow]:
 
 
 async def test_graph_run_populates_required_fields() -> None:
-    services = SimpleNamespace(retrieval=_StubRetrieval(_load_docs(), _load_rows()), llm=_StubLLM())
+    services = SimpleNamespace(
+        retrieval=_StubRetrieval(_load_docs(), _load_rows()),
+        llm=_StubLLM(),
+        prompts=_PROMPTS,
+        settings=SimpleNamespace(
+            conversation_compression_threshold=5,
+            conversation_compression_keep_tail=2,
+            chat_provider="ollama",
+            ollama_ops_model="qwen3.5:4b",
+        ),
+    )
     runner = build_agent(services)
 
     out = await runner.run(
@@ -73,7 +107,17 @@ async def test_graph_run_populates_required_fields() -> None:
 
 
 async def test_graph_empty_retrieval_still_returns_answer() -> None:
-    services = SimpleNamespace(retrieval=_StubRetrieval([], []), llm=_StubLLM())
+    services = SimpleNamespace(
+        retrieval=_StubRetrieval([], []),
+        llm=_StubLLM(),
+        prompts=_PROMPTS,
+        settings=SimpleNamespace(
+            conversation_compression_threshold=5,
+            conversation_compression_keep_tail=2,
+            chat_provider="ollama",
+            ollama_ops_model="qwen3.5:4b",
+        ),
+    )
     runner = build_agent(services)
 
     out = await runner.run(
@@ -86,3 +130,28 @@ async def test_graph_empty_retrieval_still_returns_answer() -> None:
     assert out["final_answer"]
     assert "grounding" in (out["final_answer"] or "").lower()
     assert out.get("error") is None
+
+
+async def test_graph_extracts_scenario_before_structured_retrieval() -> None:
+    retrieval = _StubRetrieval(_load_docs(), _load_rows())
+    services = SimpleNamespace(
+        retrieval=retrieval,
+        llm=_StubLLM(),
+        prompts=_PROMPTS,
+        settings=SimpleNamespace(
+            conversation_compression_threshold=5,
+            conversation_compression_keep_tail=2,
+            chat_provider="ollama",
+            ollama_ops_model="qwen3.5:4b",
+        ),
+    )
+    runner = build_agent(services)
+
+    await runner.run(
+        user_query="Please help me understand this charge",
+        session_id=None,
+        request_id="req-graph-scenario-first",
+    )
+
+    assert retrieval.complaint_calls[-1]["product"] == "Checking or savings account"
+    assert retrieval.complaint_calls[-1]["narrative_keyword"] == "overdraft"

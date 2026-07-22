@@ -1,0 +1,6 @@
+{
+  "allowed": false,
+  "category": "personalised_financial_advice",
+  "reason": "Request asks for specific investment advice.",
+  "user_message": "I can only provide general public information about financial products, not personalised advice."
+}

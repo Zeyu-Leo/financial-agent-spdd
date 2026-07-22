@@ -11,28 +11,6 @@ from app.core.services_container import ServicesContainer
 from app.core.state import AgentState
 
 
-def _doc_facts(state: AgentState) -> str:
-    docs = state.get("retrieved_docs", [])
-    if not docs:
-        return "(none)"
-    lines = [
-        f"- {doc.source_file}#{doc.chunk_index}: {doc.raw_text[:220]}"
-        for doc in docs
-    ]
-    return "\n".join(lines)
-
-
-def _complaint_facts(state: AgentState) -> str:
-    rows = state.get("structured_results", [])
-    if not rows:
-        return "(none)"
-    lines = [
-        f"- {row.complaint_id}: product={row.product}; issue={row.issue}; narrative={((row.narrative or '')[:180])}"
-        for row in rows
-    ]
-    return "\n".join(lines)
-
-
 async def summarise_tool(state: AgentState, *, services: ServicesContainer) -> AgentState:
     request_id = state.get("request_id")
     start = time.perf_counter()
@@ -47,13 +25,13 @@ async def summarise_tool(state: AgentState, *, services: ServicesContainer) -> A
         )
         return {"analysis_notes": notes}
 
-    # TODO(Task 4): replace with Jinja template doc_summary.j2
-    prompt = (
-        "You are an analyst for a financial helpdesk. Summarize grounded facts only.\n"
-        "Return concise bullet points. If evidence conflicts, mention uncertainty.\n\n"
-        f"<question>\n{state.get('user_query', '')}\n</question>\n\n"
-        f"<docs>\n{_doc_facts(state)}\n</docs>\n\n"
-        f"<complaints>\n{_complaint_facts(state)}\n</complaints>"
+    prompt = services.prompts.render(
+        "doc_summary.j2",
+        {
+            "user_query": state.get("user_query", ""),
+            "retrieved_docs": state.get("retrieved_docs", []),
+            "structured_results": state.get("structured_results", []),
+        },
     )
 
     try:

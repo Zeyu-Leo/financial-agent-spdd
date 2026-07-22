@@ -11,24 +11,7 @@ from app.core.services_container import ServicesContainer
 from app.core.state import AgentState
 
 
-def _citation_context(state: AgentState) -> str:
-    doc_refs = [
-        f"{doc.source_file}#{doc.chunk_index}"
-        for doc in state.get("retrieved_docs", [])
-    ]
-    complaint_refs = [
-        row.complaint_id
-        for row in state.get("structured_results", [])
-    ]
-    return (
-        "doc_refs=" + (", ".join(doc_refs) if doc_refs else "none") + "\n"
-        "complaint_ids=" + (", ".join(complaint_refs) if complaint_refs else "none")
-    )
-
-
-async def synthesise_answer_tool(
-    state: AgentState, *, services: ServicesContainer
-) -> AgentState:
+async def synthesise_answer_tool(state: AgentState, *, services: ServicesContainer) -> AgentState:
     request_id = state.get("request_id")
     start = time.perf_counter()
 
@@ -46,13 +29,15 @@ async def synthesise_answer_tool(
         )
         return {"final_answer": answer}
 
-    # TODO(Task 4): replace with Jinja template answer_synthesis.j2
-    prompt = (
-        "Write a concise, user-facing answer using only grounded facts. "
-        "If evidence is insufficient, say so clearly. Include citation references in prose.\n\n"
-        f"<question>\n{state.get('user_query', '')}\n</question>\n\n"
-        f"<analysis_notes>\n{state.get('analysis_notes', '')}\n</analysis_notes>\n\n"
-        f"<references>\n{_citation_context(state)}\n</references>"
+    prompt = services.prompts.render(
+        "next_steps.j2",
+        {
+            "user_query": state.get("user_query", ""),
+            "analysis_notes": state.get("analysis_notes", ""),
+            "retrieved_docs": state.get("retrieved_docs", []),
+            "structured_results": state.get("structured_results", []),
+            "scenario": state.get("scenario"),
+        },
     )
 
     try:

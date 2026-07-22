@@ -11,9 +11,7 @@ from app.core.services_container import ServicesContainer
 from app.core.state import AgentState
 
 
-async def retrieve_docs_tool(
-    state: AgentState, *, services: ServicesContainer
-) -> AgentState:
+async def retrieve_docs_tool(state: AgentState, *, services: ServicesContainer) -> AgentState:
     request_id = state.get("request_id")
     user_query = state.get("user_query", "")
     start = time.perf_counter()

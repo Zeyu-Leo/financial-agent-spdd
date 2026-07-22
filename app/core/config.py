@@ -17,8 +17,8 @@ class Settings(BaseSettings):
     # Always required. Chat and embedding pick their provider independently
     # (same provider for both, or different — e.g. Ollama embed + Portkey chat).
     pg_dsn: str
-    chat_provider: Literal["ollama", "openrouter", "portkey"] = "ollama"
-    embedding_provider: Literal["ollama", "openrouter", "portkey"] = "ollama"
+    chat_provider: Literal["ollama", "openrouter", "portkey", "deepseek", "qwen"] = "ollama"
+    embedding_provider: Literal["ollama", "openrouter", "portkey", "deepseek", "qwen"] = "ollama"
     log_format: Literal["json", "text"] = "text"
 
     # OpenRouter. The api key is conditionally required (see validator).
@@ -35,6 +35,16 @@ class Settings(BaseSettings):
     portkey_base_url: str = "https://api.portkey.ai/v1"
     portkey_model: str = "gpt-4.1-mini"
 
+    # DeepSeek. The api key is conditionally required (see validator).
+    deepseek_api_key: str | None = None
+    deepseek_base_url: str = "https://api.deepseek.com/v1"
+    deepseek_model: str = "deepseek-chat"
+
+    # Qwen / Alibaba DashScope (OpenAI-compatible). The api key is conditionally required.
+    qwen_api_key: str | None = None
+    qwen_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    qwen_model: str = "qwen-plus"
+
     # Ollama (canonical local provider).
     ollama_base_url: str = "http://localhost:11434"
     ollama_chat_model: str = "gemma3:27b"
@@ -43,6 +53,14 @@ class Settings(BaseSettings):
     # Embeddings.
     embedding_model: str = "nomic-embed-text"
     embedding_dim: int = 768
+
+    # Stage-1 Context Engineering: conversation-history compression.
+    # Short conversations (len <= threshold) pass through unchanged with no
+    # LLM cost. Set to 0 to disable compression entirely.
+    conversation_compression_threshold: int = 5
+    # Number of most-recent messages to keep verbatim; everything older is
+    # summarised into a single system message. Setting to 0 summarises all.
+    conversation_compression_keep_tail: int = 2
 
     @model_validator(mode="after")
     def _require_provider_keys(self) -> "Settings":
@@ -61,6 +79,12 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "PORTKEY_PROVIDER required when CHAT_PROVIDER or EMBEDDING_PROVIDER=portkey"
                 )
+        if "deepseek" in providers and not self.deepseek_api_key:
+            raise ValueError(
+                "DEEPSEEK_API_KEY required when CHAT_PROVIDER or EMBEDDING_PROVIDER=deepseek"
+            )
+        if "qwen" in providers and not self.qwen_api_key:
+            raise ValueError("QWEN_API_KEY required when CHAT_PROVIDER or EMBEDDING_PROVIDER=qwen")
         return self
 
 

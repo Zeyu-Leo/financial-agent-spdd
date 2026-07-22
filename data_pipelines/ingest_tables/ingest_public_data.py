@@ -47,9 +47,7 @@ _INSERT_SQL = text(
 def _require_file(path: Path, remediation: str) -> None:
     """Abort loudly if ``path`` is missing or empty (Operation 1 guard)."""
     if not path.is_file() or path.stat().st_size == 0:
-        raise SystemExit(
-            f"Required artifact missing or empty: {path}\n{remediation}"
-        )
+        raise SystemExit(f"Required artifact missing or empty: {path}\n{remediation}")
 
 
 def _bootstrap_schema(engine: Engine, settings: Settings) -> None:

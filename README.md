@@ -3,10 +3,10 @@
 A Dockerised, LangGraph-based agent that answers consumer-finance questions
 grounded in CFPB public data.
 
-**Current stage: Week 3 — Orchestration baseline.** The `app` container exposes
-`/healthz`, `/readyz`, and `POST /agent/query`. The Week 3 graph is a linear
-LangGraph flow (`ingest_input -> retrieve_phase -> analysis_phase ->
-synthesis_phase`) that combines retrieval grounding with LLM reasoning.
+**Current stage: Week 4 — Prompts & conversation compression.** The `app`
+container exposes `/healthz`, `/readyz`, and `POST /agent/query`. The LangGraph
+flow combines parallel RAG retrieval, Scenario extraction, prompt-template
+rendering, conversation-history compression, and LLM reasoning.
 
 ## Quickstart
 
@@ -29,18 +29,18 @@ app/
   ├── api/main.py                # FastAPI entrypoint, request-id middleware, /healthz + /readyz + /agent/query
   ├── core/
   │   ├── config.py              # Settings (pydantic-settings) + cached get_settings()
-  │   ├── graph.py               # Task 3 graph runner wrapper (LangGraph)
+  │   ├── graph.py               # LangGraph runner + history compression orchestration
   │   ├── logging.py             # configure_logging, request_id ContextVar, redaction, truncation
-  │   ├── state.py               # AgentState TypedDict + Task 2 model re-exports
+  │   ├── state.py               # AgentState TypedDict + domain model re-exports
   │   ├── exceptions.py          # LLMProviderError, LLMOutputValidationError
   │   └── services_container.py  # ServicesContainer (DI bundle)
   ├── services/
   │   ├── llm_client.py          # LLMHTTPClient (httpx wrapper, injectable transport)
   │   └── llm_service.py         # LLMService: complete / embed / check_liveness, retries
-  └── tools/                     # Retrieval + analysis + synthesis node tools
+  └── tools/                     # Retrieval, Scenario, analysis, and synthesis tools
 infra/                           # Dockerfile.app + docker-compose.yml
 auto/                            # Local helper scripts (start.sh)
-tests/                           # Pytest suites (config, llm_service, logging, api, health)
+tests/                           # Unit/integration tests for config, graph, tools, API, and services
 .spdd_specs/                     # SPDD specs (architecture + weekly tasks)
 ```
 
@@ -133,23 +133,37 @@ works there.
 | Endpoint       | Returns                                                                               | Notes                                                                                                                                                             |
 | -------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /healthz` | `200 {"status": "ok"}`                                                                | Pure liveness; touches no dependency.                                                                                                                             |
-| `GET /readyz`  | `200 {"status":"ready","provider":...}` / `503 {"error_code","message","request_id"}` | Single short-timeout probe of the configured provider (Ollama `GET /api/tags`, OpenRouter `GET /v1/models`); **no retry**. Postgres readiness is added in Week 2. |
+| `GET /readyz`  | `200 {"status":"ready","chat_provider":...,"embedding_provider":...}` / `503 {"error_code","message","request_id"}` | Single short-timeout probe of the configured chat provider; **no retry**. |
 
 Every response echoes an `X-Request-Id` header (reused from the request or a
 fresh UUIDv4), bound into the logging ContextVar for the request's lifetime.
 
-## Agent Orchestration (Week 3)
+## Agent Orchestration (Week 4)
 
-Graph topology (v0 baseline):
+Graph topology (current baseline):
 
 ```text
 START
   -> ingest_input
+  -> history_compression_phase
+  -> scenario_phase
   -> retrieve_phase
   -> analysis_phase
   -> synthesis_phase
   -> END
 ```
+
+`scenario_phase` extracts and validates intent with one bounded retry before
+retrieval. `retrieve_phase` then runs document and Scenario-filtered structured
+complaint retrieval in parallel. `analysis_phase` creates grounded analysis
+notes. Prompt text is versioned under
+`app/core/prompts/` and rendered through `PromptService` with Jinja
+`StrictUndefined`. Structured extractions are constrained with the Pydantic
+JSON Schema at the provider boundary (`format` for Ollama, strict
+`response_format=json_schema` for compatible OpenAI-style providers) and
+validated again locally. Qwen falls back to provider JSON mode plus the same
+local Pydantic validation. Safety models are defined, but runtime safety
+enforcement is intentionally reserved for the later safety task.
 
 Quick endpoint example:
 
@@ -176,7 +190,7 @@ Run a fast smoke cycle before PRs:
 ## Configuration
 
 All environment variables are declared in `.env.example`; copy it to `.env`.
-Key settings: `LLM_PROVIDER` (default `ollama`), `PG_DSN`, `LOG_FORMAT`,
+Key settings: `CHAT_PROVIDER` (default `ollama`), `EMBEDDING_PROVIDER`, `PG_DSN`, `LOG_FORMAT`,
 `OPENROUTER_API_KEY` (required only under `openrouter`), and the
 Ollama/embedding model fields. `config.py` is the only module permitted to read
 the environment; everything else receives a `Settings` instance. `.env` is

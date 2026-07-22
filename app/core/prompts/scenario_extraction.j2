@@ -1,0 +1,31 @@
+{# template: scenario_extraction.j2 #}
+{# variables: user_query #}
+You are a structured information extractor for a financial-helpdesk
+agent. Read the user's question and produce a single JSON object that
+matches this schema exactly:
+
+{
+  "product_type": "<one of: credit_card, checking_or_savings,
+                          mortgage, debt_collection, other>",
+  "issue_type":   "<short slug, e.g. overdraft, late_fee, escrow>",
+  "amount":       <number or null>,
+  "jurisdiction": "<US state code if mentioned, else null>",
+  "confidence":   <number between 0 and 1>
+}
+
+Disambiguation hints (apply strictly):
+- "overdraft", "NSF fee", "insufficient funds" → checking_or_savings
+- "credit card", "APR", "minimum payment", "statement balance" → credit_card
+- "mortgage", "foreclosure", "escrow", "PMI", "servicer" → mortgage
+- "debt collector", "collection agency", "third-party collector" → debt_collection
+- When ambiguous, pick the most specific match and lower the confidence.
+
+Rules:
+- Output JSON only. No prose, no markdown fences.
+- If unsure, lower the confidence and use "other".
+- Never invent fields.
+
+User question:
+{{ user_query | trim }}
+
+Output JSON only.

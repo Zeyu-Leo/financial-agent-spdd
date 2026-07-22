@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.config import Settings, get_settings
 from app.core.db import get_sessionmaker, make_engine
-from app.core.exceptions import LLMProviderError
+from app.core.exceptions import LLMOutputValidationError, LLMProviderError
 from app.core.graph import build_agent
 from app.core.logging import (
     bind_request_id,
@@ -26,6 +26,8 @@ from app.core.logging import (
     get_request_id,
     reset_request_id,
 )
+from app.core.prompt_service import PromptService
+from app.core.safety_policy import SafetyPolicy
 from app.core.services_container import ServicesContainer
 from app.services.llm_client import LLMHTTPClient
 from app.services.llm_service import LLMService
@@ -65,6 +67,16 @@ def build_http_client(settings: Settings, provider: str) -> LLMHTTPClient:
             settings.openrouter_base_url,
             api_key=settings.openrouter_api_key,
         )
+    if provider == "deepseek":
+        return LLMHTTPClient(
+            settings.deepseek_base_url,
+            api_key=settings.deepseek_api_key,
+        )
+    if provider == "qwen":
+        return LLMHTTPClient(
+            settings.qwen_base_url,
+            api_key=settings.qwen_api_key,
+        )
     if provider == "portkey":
         headers: dict[str, str] = {}
         if settings.portkey_api_key:
@@ -94,9 +106,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     chat_client, embedding_client = build_llm_clients(settings)
     llm_service = LLMService(settings, chat_client, embedding_client)
     engine = make_engine(settings.pg_dsn)
+    prompt_service = PromptService()
     container = ServicesContainer(
         settings=settings,
         llm_service=llm_service,
+        prompts=prompt_service,
+        safety=SafetyPolicy(llm_service, prompt_service),
         retrieval=RetrievalService(
             get_sessionmaker(engine),
             llm_service,
@@ -193,6 +208,15 @@ async def agent_query(payload: AgentQueryRequest, debug: bool = False) -> Respon
             status_code=502,
             content={
                 "error_code": "llm_provider_error",
+                "message": str(exc),
+                "request_id": request_id,
+            },
+        )
+    except LLMOutputValidationError as exc:
+        return JSONResponse(
+            status_code=502,
+            content={
+                "error_code": "scenario_parse_failed",
                 "message": str(exc),
                 "request_id": request_id,
             },
